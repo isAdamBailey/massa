@@ -20,7 +20,7 @@ func TestBackfillService_Run(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		switch r.URL.Path {
-		case "/users/health-user-123/dataTypes/weight/dataPoints":
+		case "/users/me/dataTypes/weight/dataPoints":
 			_, _ = w.Write([]byte(`{
 				"dataPoints": [
 					{
@@ -32,7 +32,7 @@ func TestBackfillService_Run(t *testing.T) {
 					}
 				]
 			}`))
-		case "/users/health-user-123/dataTypes/height/dataPoints":
+		case "/users/me/dataTypes/height/dataPoints":
 			_, _ = w.Write([]byte(`{
 				"dataPoints": [
 					{

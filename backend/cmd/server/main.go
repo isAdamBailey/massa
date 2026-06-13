@@ -74,7 +74,7 @@ func main() {
 	r.Use(middleware.Recoverer)
 	r.Use(cors.Handler(cors.Options{
 		AllowedOrigins:   []string{cfg.AppBaseURL},
-		AllowedMethods:   []string{http.MethodGet, http.MethodPost, http.MethodOptions},
+		AllowedMethods:   []string{http.MethodGet, http.MethodPost, http.MethodPatch, http.MethodPut, http.MethodDelete, http.MethodOptions},
 		AllowedHeaders:   []string{"Content-Type", "X-CSRF-Token"},
 		AllowCredentials: true,
 		MaxAge:           300,

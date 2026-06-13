@@ -68,10 +68,10 @@ func (s *BackfillService) Run(ctx context.Context, userID uuid.UUID) error {
 	tokenSource := s.oauthConfig.TokenSource(ctx, token)
 	client := newClient(oauth2.NewClient(ctx, tokenSource), s.apiBaseURL)
 
-	if err := s.syncWeight(ctx, client, userID, creds.HealthUserID); err != nil {
+	if err := s.syncWeight(ctx, client, userID, "me"); err != nil {
 		return fmt.Errorf("sync weight: %w", err)
 	}
-	if err := s.syncHeight(ctx, client, userID, creds.HealthUserID); err != nil {
+	if err := s.syncHeight(ctx, client, userID, "me"); err != nil {
 		return fmt.Errorf("sync height: %w", err)
 	}
 

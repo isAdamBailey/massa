@@ -3,7 +3,7 @@ const auth = useAuthStore()
 const weights = useWeightsStore()
 const settings = useSettingsStore()
 const google = useGoogleHealthStore()
-const { category } = useBmi()
+const { category, kgToLb } = useBmi()
 
 type RangePreset = '7d' | '30d' | '90d' | '1y' | 'all'
 
@@ -37,6 +37,18 @@ async function loadEntries() {
 }
 
 const latestEntry = computed(() => weights.entries.at(-1) ?? null)
+
+const weightUnitLabel = computed(() => settings.settings.unitsPreference === 'imperial' ? 'lb' : 'kg')
+
+const latestWeightDisplay = computed(() => {
+  if (!latestEntry.value) {
+    return null
+  }
+  const weight = settings.settings.unitsPreference === 'imperial'
+    ? kgToLb(latestEntry.value.weightKg)
+    : latestEntry.value.weightKg
+  return weight.toFixed(1)
+})
 
 onMounted(async () => {
   await Promise.all([loadEntries(), settings.fetchSettings(), google.fetchStatus()])
@@ -101,7 +113,7 @@ function formatDate(value?: string) {
             Latest weight
           </dt>
           <dd class="text-lg font-semibold text-gray-900">
-            {{ latestEntry.weightKg.toFixed(1) }} kg
+            {{ latestWeightDisplay }} {{ weightUnitLabel }}
           </dd>
         </div>
         <div v-if="latestEntry.bmi">

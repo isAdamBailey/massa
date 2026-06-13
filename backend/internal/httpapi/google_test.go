@@ -132,11 +132,11 @@ func newGoogleAPIServer(t *testing.T) *httptest.Server {
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write([]byte(`{"name":"users/` + testHealthUserID + `","healthUserId":"` + testHealthUserID + `"}`))
 	})
-	mux.HandleFunc("/users/"+testHealthUserID+"/dataTypes/weight/dataPoints", func(w http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc("/users/me/dataTypes/weight/dataPoints", func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write([]byte(`{"dataPoints":[]}`))
 	})
-	mux.HandleFunc("/users/"+testHealthUserID+"/dataTypes/height/dataPoints", func(w http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc("/users/me/dataTypes/height/dataPoints", func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write([]byte(`{"dataPoints":[]}`))
 	})
