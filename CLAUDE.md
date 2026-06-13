@@ -154,3 +154,13 @@ provide one).
   against a local `httptest.Server` by injecting it via the
   `oauth2.HTTPClient` context key, rather than calling real Google
   endpoints.
+
+## Design Context
+
+`PRODUCT.md` (and `DESIGN.md`, once generated) at the repo root define the
+frontend's design direction for use with the `/impeccable` skill. Register:
+**product**. Personality: calm and quiet — a private journal, not a coach or
+leaderboard; numbers presented without judgment, closer to Oura/Whoop's
+restrained quantified-self feel than a generic SaaS dashboard or a gamified
+fitness app. One accent color, used deliberately. Read `PRODUCT.md` before
+making frontend design decisions.

@@ -1,0 +1,174 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-06-13T00:00:00Z",
+  "title": "Design System: Massa",
+  "extensions": {
+    "colorMeta": {
+      "carbon": {
+        "role": "neutral",
+        "displayName": "Carbon",
+        "canonical": "oklch(0.16 0 0)",
+        "tonalRamp": ["oklch(0.15 0 0)", "oklch(0.26 0 0)", "oklch(0.38 0 0)", "oklch(0.49 0 0)", "oklch(0.61 0 0)", "oklch(0.72 0 0)", "oklch(0.84 0 0)", "oklch(0.95 0 0)"]
+      },
+      "slate": {
+        "role": "neutral",
+        "displayName": "Slate",
+        "canonical": "oklch(0.22 0.005 170)",
+        "tonalRamp": ["oklch(0.15 0.005 170)", "oklch(0.26 0.005 170)", "oklch(0.38 0.005 170)", "oklch(0.49 0.005 170)", "oklch(0.61 0.005 170)", "oklch(0.72 0.005 170)", "oklch(0.84 0.005 170)", "oklch(0.95 0.005 170)"]
+      },
+      "graphite": {
+        "role": "neutral",
+        "displayName": "Graphite",
+        "canonical": "oklch(0.28 0.006 170)",
+        "tonalRamp": ["oklch(0.15 0.006 170)", "oklch(0.26 0.006 170)", "oklch(0.38 0.006 170)", "oklch(0.49 0.006 170)", "oklch(0.61 0.006 170)", "oklch(0.72 0.006 170)", "oklch(0.84 0.006 170)", "oklch(0.95 0.006 170)"]
+      },
+      "graphite-hover": {
+        "role": "neutral",
+        "displayName": "Graphite Hover",
+        "canonical": "oklch(0.33 0.007 170)",
+        "tonalRamp": ["oklch(0.15 0.007 170)", "oklch(0.26 0.007 170)", "oklch(0.38 0.007 170)", "oklch(0.49 0.007 170)", "oklch(0.61 0.007 170)", "oklch(0.72 0.007 170)", "oklch(0.84 0.007 170)", "oklch(0.95 0.007 170)"]
+      },
+      "hairline": {
+        "role": "neutral",
+        "displayName": "Hairline",
+        "canonical": "oklch(0.32 0.006 170)",
+        "tonalRamp": ["oklch(0.15 0.006 170)", "oklch(0.26 0.006 170)", "oklch(0.38 0.006 170)", "oklch(0.49 0.006 170)", "oklch(0.61 0.006 170)", "oklch(0.72 0.006 170)", "oklch(0.84 0.006 170)", "oklch(0.95 0.006 170)"]
+      },
+      "mist": {
+        "role": "neutral",
+        "displayName": "Mist",
+        "canonical": "oklch(0.95 0.003 170)",
+        "tonalRamp": ["oklch(0.15 0.003 170)", "oklch(0.26 0.003 170)", "oklch(0.38 0.003 170)", "oklch(0.49 0.003 170)", "oklch(0.61 0.003 170)", "oklch(0.72 0.003 170)", "oklch(0.84 0.003 170)", "oklch(0.95 0.003 170)"]
+      },
+      "fog": {
+        "role": "neutral",
+        "displayName": "Fog",
+        "canonical": "oklch(0.64 0.01 170)",
+        "tonalRamp": ["oklch(0.15 0.01 170)", "oklch(0.26 0.01 170)", "oklch(0.38 0.01 170)", "oklch(0.49 0.01 170)", "oklch(0.61 0.01 170)", "oklch(0.72 0.01 170)", "oklch(0.84 0.01 170)", "oklch(0.95 0.01 170)"]
+      },
+      "verdigris": {
+        "role": "primary",
+        "displayName": "Verdigris",
+        "canonical": "oklch(0.70 0.09 170)",
+        "tonalRamp": ["oklch(0.15 0.09 170)", "oklch(0.26 0.09 170)", "oklch(0.38 0.09 170)", "oklch(0.49 0.09 170)", "oklch(0.61 0.09 170)", "oklch(0.72 0.09 170)", "oklch(0.84 0.09 170)", "oklch(0.95 0.09 170)"]
+      },
+      "verdigris-hover": {
+        "role": "primary",
+        "displayName": "Verdigris Hover",
+        "canonical": "oklch(0.76 0.09 170)",
+        "tonalRamp": ["oklch(0.15 0.09 170)", "oklch(0.26 0.09 170)", "oklch(0.38 0.09 170)", "oklch(0.49 0.09 170)", "oklch(0.61 0.09 170)", "oklch(0.72 0.09 170)", "oklch(0.84 0.09 170)", "oklch(0.95 0.09 170)"]
+      },
+      "ember": {
+        "role": "semantic",
+        "displayName": "Ember",
+        "canonical": "oklch(0.62 0.17 25)",
+        "tonalRamp": ["oklch(0.15 0.17 25)", "oklch(0.26 0.17 25)", "oklch(0.38 0.17 25)", "oklch(0.49 0.17 25)", "oklch(0.61 0.17 25)", "oklch(0.72 0.17 25)", "oklch(0.84 0.17 25)", "oklch(0.95 0.17 25)"]
+      }
+    },
+    "typographyMeta": {
+      "display": { "displayName": "Display", "purpose": "Headline stat values (weight, BMI, weekly average) — IBM Plex Mono, tabular figures, used sparingly." },
+      "headline": { "displayName": "Headline", "purpose": "Page titles: Massa, Settings." },
+      "title": { "displayName": "Title", "purpose": "Section headings within a page." },
+      "body": { "displayName": "Body", "purpose": "Default UI text, list rows, helper copy." },
+      "label": { "displayName": "Label", "purpose": "Field labels, units, timestamps, toggle/button text." }
+    },
+    "motion": [
+      { "name": "ease-out-quart", "value": "cubic-bezier(0.25, 1, 0.5, 1)", "purpose": "Default easing for hover/focus tonal-step and color transitions." },
+      { "name": "duration-fast", "value": "150ms", "purpose": "Hover and focus state transitions (background, color)." }
+    ],
+    "breakpoints": [
+      { "name": "sm", "value": "640px" },
+      { "name": "md", "value": "768px" },
+      { "name": "lg", "value": "1024px" }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "Dominant action per view: Add entry, Connect Google Health, Sync now.",
+      "html": "<button class=\"ds-btn-primary\">Add entry</button>",
+      "css": ".ds-btn-primary { background: oklch(0.70 0.09 170); color: oklch(0.95 0.003 170); font: 500 0.75rem/1.4 \"IBM Plex Sans\", ui-sans-serif, system-ui, sans-serif; letter-spacing: 0.01em; padding: 10px 16px; border: none; border-radius: 6px; cursor: pointer; transition: background 150ms cubic-bezier(0.25,1,0.5,1); } .ds-btn-primary:hover { background: oklch(0.76 0.09 170); } .ds-btn-primary:focus-visible { outline: 2px solid oklch(0.70 0.09 170); outline-offset: 2px; }"
+    },
+    {
+      "name": "Secondary Button",
+      "kind": "button",
+      "refersTo": "button-secondary",
+      "description": "Settings, Log out, Cancel — and inactive segmented-control options.",
+      "html": "<button class=\"ds-btn-secondary\">Settings</button>",
+      "css": ".ds-btn-secondary { background: oklch(0.28 0.006 170); color: oklch(0.95 0.003 170); font: 500 0.75rem/1.4 \"IBM Plex Sans\", ui-sans-serif, system-ui, sans-serif; letter-spacing: 0.01em; padding: 10px 16px; border: none; border-radius: 6px; cursor: pointer; transition: background 150ms cubic-bezier(0.25,1,0.5,1); } .ds-btn-secondary:hover { background: oklch(0.33 0.007 170); } .ds-btn-secondary:focus-visible { outline: 2px solid oklch(0.70 0.09 170); outline-offset: 2px; }"
+    },
+    {
+      "name": "Destructive Button",
+      "kind": "button",
+      "refersTo": "button-destructive",
+      "description": "Delete actions — text-only Ember, no fill, stays quiet until pressed.",
+      "html": "<button class=\"ds-btn-destructive\">Delete</button>",
+      "css": ".ds-btn-destructive { background: transparent; color: oklch(0.62 0.17 25); font: 500 0.75rem/1.4 \"IBM Plex Sans\", ui-sans-serif, system-ui, sans-serif; letter-spacing: 0.01em; padding: 10px 16px; border: none; border-radius: 6px; cursor: pointer; transition: background 150ms cubic-bezier(0.25,1,0.5,1); } .ds-btn-destructive:hover { background: oklch(0.28 0.006 170); } .ds-btn-destructive:focus-visible { outline: 2px solid oklch(0.70 0.09 170); outline-offset: 2px; }"
+    },
+    {
+      "name": "Segmented Control",
+      "kind": "chip",
+      "refersTo": "button-secondary",
+      "description": "Range presets and daily/weekly, weight/BMI toggles. Exactly one option glows Verdigris at a time.",
+      "html": "<div class=\"ds-segmented\"><button class=\"ds-segmented-option ds-segmented-option--active\">Daily</button><button class=\"ds-segmented-option\">Weekly</button></div>",
+      "css": ".ds-segmented { display: inline-flex; gap: 4px; } .ds-segmented-option { background: oklch(0.28 0.006 170); color: oklch(0.95 0.003 170); font: 500 0.75rem/1.4 \"IBM Plex Sans\", ui-sans-serif, system-ui, sans-serif; letter-spacing: 0.01em; padding: 6px 14px; border: none; border-radius: 6px; cursor: pointer; transition: background 150ms cubic-bezier(0.25,1,0.5,1), color 150ms cubic-bezier(0.25,1,0.5,1); } .ds-segmented-option:hover { background: oklch(0.33 0.007 170); } .ds-segmented-option--active, .ds-segmented-option--active:hover { background: oklch(0.70 0.09 170); color: oklch(0.95 0.003 170); }"
+    },
+    {
+      "name": "Input",
+      "kind": "input",
+      "refersTo": "input",
+      "description": "Text/number/date fields — Graphite fill signals editability without a border.",
+      "html": "<input class=\"ds-input\" type=\"text\" placeholder=\"82.4\">",
+      "css": ".ds-input { background: oklch(0.28 0.006 170); color: oklch(0.95 0.003 170); font: 400 0.875rem/1.5 \"IBM Plex Sans\", ui-sans-serif, system-ui, sans-serif; padding: 10px 12px; border: none; border-radius: 6px; width: 100%; } .ds-input::placeholder { color: oklch(0.64 0.01 170); } .ds-input:focus-visible { outline: 2px solid oklch(0.70 0.09 170); outline-offset: 2px; }"
+    },
+    {
+      "name": "Surface Card",
+      "kind": "card",
+      "refersTo": "surface-card",
+      "description": "Slate panel for dashboard sections (stats, chart, forms, entry list).",
+      "html": "<div class=\"ds-card\">Card content</div>",
+      "css": ".ds-card { background: oklch(0.22 0.005 170); border-radius: 10px; padding: 20px; }"
+    },
+    {
+      "name": "Stat Readout",
+      "kind": "custom",
+      "refersTo": "surface-card",
+      "description": "Signature component: a Label above a Display-weight tabular numeral with its unit, e.g. 'Latest weight \\n 82.4 kg'.",
+      "html": "<div class=\"ds-stat\"><span class=\"ds-stat-label\">Latest weight</span><span class=\"ds-stat-value\">82.4<span class=\"ds-stat-unit\"> kg</span></span></div>",
+      "css": ".ds-stat { display: flex; flex-direction: column; gap: 4px; } .ds-stat-label { font: 500 0.75rem/1.4 \"IBM Plex Sans\", ui-sans-serif, system-ui, sans-serif; letter-spacing: 0.01em; color: oklch(0.64 0.01 170); } .ds-stat-value { font: 500 clamp(1.75rem, 5vw, 2.5rem)/1.1 \"IBM Plex Mono\", ui-monospace, SFMono-Regular, monospace; font-feature-settings: \"tnum\"; color: oklch(0.95 0.003 170); } .ds-stat-unit { font: 500 0.75rem/1.4 \"IBM Plex Sans\", ui-sans-serif, system-ui, sans-serif; color: oklch(0.64 0.01 170); }"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Quiet Gauge",
+    "overview": "Massa reads like the display face of a precision instrument at rest: a near-black panel, legible numerals, and exactly one color that glows when something is worth your attention. It is closer to the dim readout on a bathroom scale at 6am, or the home screen of an Oura ring, than to a SaaS admin dashboard. Nothing here is trying to motivate, congratulate, or alarm — it states the number and the trend, and gets out of the way.\n\nThis system explicitly rejects the generic SaaS dashboard look the codebase currently has — gray-and-blue default Tailwind, identical bordered white cards stacked end to end — and the gamified fitness app register of streaks, badges, and gradient \"you crushed it!\" energy. Weight and BMI are presented as readings, not scores.",
+    "keyCharacteristics": [
+      "Near-black carbon surface; depth comes from tonal steps, not shadows or borders.",
+      "One accent color (verdigris, an oxidized-teal) — reserved for the single thing on screen that matters right now.",
+      "Numerals set in a monospaced face with tabular figures, so readings feel measured rather than typeset.",
+      "Tight, precise corner radii (6-10px) — an instrument panel, not a pillow.",
+      "Equal-weight responsive layout: the same calm reading on phone and desktop."
+    ],
+    "rules": [
+      { "name": "The Single Glow Rule", "body": "Verdigris appears on exactly one element class per screen: the primary action, the active toggle, or the live data series — never all three competing at once, and never as decoration (icon tints, section headers, borders).", "section": "colors" },
+      { "name": "The Numbers Don't Judge Rule", "body": "Weight, BMI, and trend lines are always Mist or Verdigris, regardless of whether the number went up or down. Ember is reserved for system/form errors — never for \"you gained weight\" framing.", "section": "colors" },
+      { "name": "The Reading vs. Label Rule", "body": "If a number is something the user measures (weight, BMI, height), set it in Display (IBM Plex Mono, tabular). If it's metadata about a measurement (date, unit, source), set it in Label (IBM Plex Sans). Never mix the two faces for the same value.", "section": "typography" },
+      { "name": "The Flat-By-Default Rule", "body": "Surfaces never cast shadows, at rest or on hover. If an element needs to feel interactive, shift it one tonal step (Slate to Graphite) or brighten Verdigris (to Verdigris Hover), not add depth.", "section": "elevation" }
+    ],
+    "dos": [
+      "Do keep the page Carbon and let Verdigris be the only saturated color anywhere on screen (The Single Glow Rule).",
+      "Do set every weight/BMI/height value in IBM Plex Mono with tabular figures (The Reading vs. Label Rule).",
+      "Do convey hierarchy and \"card-ness\" with the Carbon to Slate to Graphite tonal steps, never with borders or shadows.",
+      "Do use Ember only for form/system errors and the destructive action — never to color-code a weight change.",
+      "Do keep corner radii tight (6px controls, 10px cards) — an instrument panel, not a consumer wellness app."
+    ],
+    "donts": [
+      "Don't reintroduce \"bland gray-and-blue, default Tailwind palette\" — the look this redesign replaces. No bg-blue-600, no bg-gray-50/bg-white cards with border-gray-200.",
+      "Don't stack \"identical bordered cards... repeated for every section\" — vary density and let whitespace do the separating work inside a single Slate surface where possible.",
+      "Don't add streaks, badges, gradients, or \"you crushed it!\" copy — Massa doesn't coach or celebrate (no gamified-fitness energy).",
+      "Don't color weight-up vs. weight-down differently (no red-for-gain / green-for-loss anywhere, including the chart line).",
+      "Don't add drop shadows, glassmorphism, or hover-lift effects — flat by default, always."
+    ]
+  }
+}
