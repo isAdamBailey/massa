@@ -1,0 +1,10 @@
+# Local environment files
+.env
+.env.*
+!.env.example
+
+# Claude Code local settings
+.claude/settings.local.json
+
+# OS
+.DS_Store
