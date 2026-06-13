@@ -75,3 +75,30 @@ func (q *Queries) UpdateLastLoginAt(ctx context.Context, id pgtype.UUID) error {
 	_, err := q.db.Exec(ctx, updateLastLoginAt, id)
 	return err
 }
+
+const updateUserSettings = `-- name: UpdateUserSettings :one
+UPDATE users
+SET manual_height_cm = $2, units_preference = $3
+WHERE id = $1
+RETURNING id, email, manual_height_cm, units_preference, created_at, last_login_at
+`
+
+type UpdateUserSettingsParams struct {
+	ID              pgtype.UUID    `json:"id"`
+	ManualHeightCm  pgtype.Numeric `json:"manual_height_cm"`
+	UnitsPreference string         `json:"units_preference"`
+}
+
+func (q *Queries) UpdateUserSettings(ctx context.Context, arg UpdateUserSettingsParams) (User, error) {
+	row := q.db.QueryRow(ctx, updateUserSettings, arg.ID, arg.ManualHeightCm, arg.UnitsPreference)
+	var i User
+	err := row.Scan(
+		&i.ID,
+		&i.Email,
+		&i.ManualHeightCm,
+		&i.UnitsPreference,
+		&i.CreatedAt,
+		&i.LastLoginAt,
+	)
+	return i, err
+}

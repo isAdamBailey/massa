@@ -11,6 +11,28 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const getLatestHeightEntry = `-- name: GetLatestHeightEntry :one
+SELECT id, user_id, height_cm, recorded_at, source, google_data_point_id, created_at FROM height_entries
+WHERE user_id = $1
+ORDER BY recorded_at DESC
+LIMIT 1
+`
+
+func (q *Queries) GetLatestHeightEntry(ctx context.Context, userID pgtype.UUID) (HeightEntry, error) {
+	row := q.db.QueryRow(ctx, getLatestHeightEntry, userID)
+	var i HeightEntry
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.HeightCm,
+		&i.RecordedAt,
+		&i.Source,
+		&i.GoogleDataPointID,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
 const upsertHeightEntryByGoogleID = `-- name: UpsertHeightEntryByGoogleID :one
 INSERT INTO height_entries (user_id, height_cm, recorded_at, source, google_data_point_id)
 VALUES ($1, $2, $3, 'google', $4)

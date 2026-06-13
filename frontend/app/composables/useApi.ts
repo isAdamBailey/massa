@@ -1,7 +1,7 @@
 const CSRF_COOKIE_NAME = 'massa_csrf'
 
 interface ApiFetchOptions {
-  method?: 'GET' | 'POST'
+  method?: 'GET' | 'POST' | 'PATCH' | 'PUT' | 'DELETE'
   body?: unknown
 }
 

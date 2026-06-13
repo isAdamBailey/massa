@@ -18,10 +18,12 @@ var ErrNotFound = errors.New("user not found")
 
 // User is a registered application user.
 type User struct {
-	ID          uuid.UUID
-	Email       string
-	CreatedAt   time.Time
-	LastLoginAt *time.Time
+	ID              uuid.UUID
+	Email           string
+	ManualHeightCm  *float64
+	UnitsPreference string
+	CreatedAt       time.Time
+	LastLoginAt     *time.Time
 }
 
 // Repository manages the allowlist and user records.
@@ -36,6 +38,9 @@ type Repository interface {
 	Create(ctx context.Context, email string) (User, error)
 	// UpdateLastLoginAt sets the user's last_login_at to now.
 	UpdateLastLoginAt(ctx context.Context, id uuid.UUID) error
+	// UpdateSettings updates the user's manual height override and units
+	// preference.
+	UpdateSettings(ctx context.Context, id uuid.UUID, manualHeightCm *float64, unitsPreference string) (User, error)
 	// SyncAllowlist makes the allowed_users table match emails exactly,
 	// adding and removing entries as needed.
 	SyncAllowlist(ctx context.Context, emails []string) error
@@ -65,7 +70,7 @@ func (r *PostgresRepository) GetByEmail(ctx context.Context, email string) (User
 	if err != nil {
 		return User{}, err
 	}
-	return fromRow(row), nil
+	return fromRow(row)
 }
 
 // GetByID implements Repository.
@@ -77,7 +82,7 @@ func (r *PostgresRepository) GetByID(ctx context.Context, id uuid.UUID) (User, e
 	if err != nil {
 		return User{}, err
 	}
-	return fromRow(row), nil
+	return fromRow(row)
 }
 
 // Create implements Repository.
@@ -86,12 +91,33 @@ func (r *PostgresRepository) Create(ctx context.Context, email string) (User, er
 	if err != nil {
 		return User{}, err
 	}
-	return fromRow(row), nil
+	return fromRow(row)
 }
 
 // UpdateLastLoginAt implements Repository.
 func (r *PostgresRepository) UpdateLastLoginAt(ctx context.Context, id uuid.UUID) error {
 	return r.q.UpdateLastLoginAt(ctx, db.ToUUID(id))
+}
+
+// UpdateSettings implements Repository.
+func (r *PostgresRepository) UpdateSettings(ctx context.Context, id uuid.UUID, manualHeightCm *float64, unitsPreference string) (User, error) {
+	manualHeightCmNumeric, err := db.ToNumericPtr(manualHeightCm)
+	if err != nil {
+		return User{}, err
+	}
+
+	row, err := r.q.UpdateUserSettings(ctx, db.UpdateUserSettingsParams{
+		ID:              db.ToUUID(id),
+		ManualHeightCm:  manualHeightCmNumeric,
+		UnitsPreference: unitsPreference,
+	})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return User{}, ErrNotFound
+	}
+	if err != nil {
+		return User{}, err
+	}
+	return fromRow(row)
 }
 
 // SyncAllowlist implements Repository.
@@ -130,11 +156,18 @@ func (r *PostgresRepository) SyncAllowlist(ctx context.Context, emails []string)
 	return nil
 }
 
-func fromRow(row db.User) User {
-	return User{
-		ID:          db.FromUUID(row.ID),
-		Email:       row.Email,
-		CreatedAt:   row.CreatedAt.Time,
-		LastLoginAt: db.FromTimestamptz(row.LastLoginAt),
+func fromRow(row db.User) (User, error) {
+	manualHeightCm, err := db.FromNumericPtr(row.ManualHeightCm)
+	if err != nil {
+		return User{}, err
 	}
+
+	return User{
+		ID:              db.FromUUID(row.ID),
+		Email:           row.Email,
+		ManualHeightCm:  manualHeightCm,
+		UnitsPreference: row.UnitsPreference,
+		CreatedAt:       row.CreatedAt.Time,
+		LastLoginAt:     db.FromTimestamptz(row.LastLoginAt),
+	}, nil
 }

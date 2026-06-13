@@ -8,8 +8,10 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 
+	"github.com/isAdamBailey/massa/backend/internal/bmi"
 	"github.com/isAdamBailey/massa/backend/internal/db"
 	"github.com/isAdamBailey/massa/backend/internal/users"
+	"github.com/isAdamBailey/massa/backend/internal/weights"
 )
 
 // fakeQuerier is an in-memory implementation of auth.Querier.
@@ -121,7 +123,7 @@ func (f *fakeUsers) GetByID(_ context.Context, id uuid.UUID) (users.User, error)
 }
 
 func (f *fakeUsers) Create(_ context.Context, email string) (users.User, error) {
-	u := users.User{ID: uuid.New(), Email: email, CreatedAt: time.Now()}
+	u := users.User{ID: uuid.New(), Email: email, UnitsPreference: "metric", CreatedAt: time.Now()}
 	f.byEmail[email] = u
 	return u, nil
 }
@@ -137,6 +139,18 @@ func (f *fakeUsers) UpdateLastLoginAt(_ context.Context, id uuid.UUID) error {
 	return nil
 }
 
+func (f *fakeUsers) UpdateSettings(_ context.Context, id uuid.UUID, manualHeightCm *float64, unitsPreference string) (users.User, error) {
+	for email, u := range f.byEmail {
+		if u.ID == id {
+			u.ManualHeightCm = manualHeightCm
+			u.UnitsPreference = unitsPreference
+			f.byEmail[email] = u
+			return u, nil
+		}
+	}
+	return users.User{}, users.ErrNotFound
+}
+
 func (f *fakeUsers) SyncAllowlist(_ context.Context, emails []string) error {
 	allowed := make(map[string]bool, len(emails))
 	for _, e := range emails {
@@ -144,6 +158,117 @@ func (f *fakeUsers) SyncAllowlist(_ context.Context, emails []string) error {
 	}
 	f.allowed = allowed
 	return nil
+}
+
+// weightEntryWithUser pairs a weights.Entry with the user it belongs to,
+// since weights.Entry itself has no user reference.
+type weightEntryWithUser struct {
+	weights.Entry
+	userID uuid.UUID
+}
+
+// fakeWeightsService is an in-memory implementation of httpapi.WeightsService.
+type fakeWeightsService struct {
+	entries map[uuid.UUID]weightEntryWithUser
+	// heightCm, if non-zero, is used to compute BMI for new/updated entries.
+	heightCm float64
+}
+
+func newFakeWeightsService() *fakeWeightsService {
+	return &fakeWeightsService{entries: make(map[uuid.UUID]weightEntryWithUser), heightCm: 175}
+}
+
+func (f *fakeWeightsService) bmiAndHeight(weightKg float64) (*float64, *float64) {
+	if f.heightCm <= 0 {
+		return nil, nil
+	}
+	b := bmi.Calculate(weightKg, f.heightCm)
+	h := f.heightCm
+	return &b, &h
+}
+
+func (f *fakeWeightsService) List(_ context.Context, userID uuid.UUID, from, to *time.Time) ([]weights.Entry, error) {
+	var entries []weights.Entry
+	for _, e := range f.entries {
+		if e.userID != userID {
+			continue
+		}
+		if from != nil && e.RecordedAt.Before(*from) {
+			continue
+		}
+		if to != nil && e.RecordedAt.After(*to) {
+			continue
+		}
+		entries = append(entries, e.Entry)
+	}
+	return entries, nil
+}
+
+func (f *fakeWeightsService) Create(_ context.Context, userID uuid.UUID, weightKg float64, recordedAt time.Time) (weights.Entry, error) {
+	now := time.Now()
+	bmiValue, heightUsedCm := f.bmiAndHeight(weightKg)
+	entry := weights.Entry{
+		ID:           uuid.New(),
+		WeightKg:     weightKg,
+		RecordedAt:   recordedAt,
+		BMI:          bmiValue,
+		HeightUsedCm: heightUsedCm,
+		Source:       "manual",
+		CreatedAt:    now,
+		UpdatedAt:    now,
+	}
+	f.entries[entry.ID] = weightEntryWithUser{Entry: entry, userID: userID}
+	return entry, nil
+}
+
+func (f *fakeWeightsService) Update(_ context.Context, userID, id uuid.UUID, weightKg float64, recordedAt time.Time) (weights.Entry, error) {
+	existing, ok := f.entries[id]
+	if !ok || existing.userID != userID {
+		return weights.Entry{}, weights.ErrNotFound
+	}
+	bmiValue, heightUsedCm := f.bmiAndHeight(weightKg)
+	existing.WeightKg = weightKg
+	existing.RecordedAt = recordedAt
+	existing.BMI = bmiValue
+	existing.HeightUsedCm = heightUsedCm
+	existing.UpdatedAt = time.Now()
+	f.entries[id] = existing
+	return existing.Entry, nil
+}
+
+func (f *fakeWeightsService) Delete(_ context.Context, userID, id uuid.UUID) error {
+	existing, ok := f.entries[id]
+	if !ok || existing.userID != userID {
+		return weights.ErrNotFound
+	}
+	delete(f.entries, id)
+	return nil
+}
+
+func (f *fakeWeightsService) Get(_ context.Context, userID, id uuid.UUID) (weights.Entry, error) {
+	existing, ok := f.entries[id]
+	if !ok || existing.userID != userID {
+		return weights.Entry{}, weights.ErrNotFound
+	}
+	return existing.Entry, nil
+}
+
+func (f *fakeWeightsService) Latest(_ context.Context, userID uuid.UUID) (weights.Entry, error) {
+	var latest weights.Entry
+	found := false
+	for _, e := range f.entries {
+		if e.userID != userID {
+			continue
+		}
+		if !found || e.RecordedAt.After(latest.RecordedAt) {
+			latest = e.Entry
+			found = true
+		}
+	}
+	if !found {
+		return weights.Entry{}, weights.ErrNotFound
+	}
+	return latest, nil
 }
 
 // fakeMailer is an in-memory implementation of mailer.Mailer.

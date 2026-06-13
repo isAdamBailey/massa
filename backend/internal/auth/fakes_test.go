@@ -125,7 +125,7 @@ func (f *fakeUsers) GetByID(_ context.Context, id uuid.UUID) (users.User, error)
 }
 
 func (f *fakeUsers) Create(_ context.Context, email string) (users.User, error) {
-	u := users.User{ID: mustUUID(), Email: email, CreatedAt: time.Now()}
+	u := users.User{ID: mustUUID(), Email: email, UnitsPreference: "metric", CreatedAt: time.Now()}
 	f.byEmail[email] = u
 	return u, nil
 }
@@ -139,6 +139,18 @@ func (f *fakeUsers) UpdateLastLoginAt(_ context.Context, id uuid.UUID) error {
 		}
 	}
 	return nil
+}
+
+func (f *fakeUsers) UpdateSettings(_ context.Context, id uuid.UUID, manualHeightCm *float64, unitsPreference string) (users.User, error) {
+	for email, u := range f.byEmail {
+		if u.ID == id {
+			u.ManualHeightCm = manualHeightCm
+			u.UnitsPreference = unitsPreference
+			f.byEmail[email] = u
+			return u, nil
+		}
+	}
+	return users.User{}, users.ErrNotFound
 }
 
 func (f *fakeUsers) SyncAllowlist(_ context.Context, emails []string) error {

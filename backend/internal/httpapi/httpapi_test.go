@@ -25,7 +25,7 @@ func newTestRouter(allowedEmails ...string) (chi.Router, *fakeQuerier, *fakeUser
 	svc := auth.NewService(q, u, m, []byte("test-secret"), false, "http://localhost:3000")
 
 	r := chi.NewRouter()
-	httpapi.NewHandler(svc, u, false, "http://localhost:3000", nil).Register(r)
+	httpapi.NewHandler(svc, u, newFakeWeightsService(), false, "http://localhost:3000", nil).Register(r)
 
 	return r, q, u, m
 }

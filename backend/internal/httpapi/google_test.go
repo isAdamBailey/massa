@@ -202,7 +202,7 @@ func newGoogleTestEnv(t *testing.T) *googleTestEnv {
 	}
 
 	r := chi.NewRouter()
-	httpapi.NewHandler(svc, u, false, "http://localhost:3000", google).Register(r)
+	httpapi.NewHandler(svc, u, newFakeWeightsService(), false, "http://localhost:3000", google).Register(r)
 
 	return &googleTestEnv{router: r, mailer: m, users: u, credentials: credentials, syncMeta: syncMeta, apiServer: apiServer}
 }

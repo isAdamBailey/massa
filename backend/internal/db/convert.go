@@ -61,3 +61,25 @@ func FromNumeric(n pgtype.Numeric) (float64, error) {
 	}
 	return f.Float64, nil
 }
+
+// ToNumericPtr converts a *float64 to the pgtype representation used by
+// sqlc-generated code, returning an invalid (NULL) value for nil.
+func ToNumericPtr(f *float64) (pgtype.Numeric, error) {
+	if f == nil {
+		return pgtype.Numeric{}, nil
+	}
+	return ToNumeric(*f)
+}
+
+// FromNumericPtr converts a pgtype.Numeric to a *float64, returning nil if
+// the value is not set.
+func FromNumericPtr(n pgtype.Numeric) (*float64, error) {
+	if !n.Valid {
+		return nil, nil
+	}
+	f, err := FromNumeric(n)
+	if err != nil {
+		return nil, err
+	}
+	return &f, nil
+}

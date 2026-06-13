@@ -14,9 +14,11 @@ import (
 	"github.com/isAdamBailey/massa/backend/internal/config"
 	"github.com/isAdamBailey/massa/backend/internal/db"
 	"github.com/isAdamBailey/massa/backend/internal/googlehealth"
+	"github.com/isAdamBailey/massa/backend/internal/heights"
 	"github.com/isAdamBailey/massa/backend/internal/httpapi"
 	"github.com/isAdamBailey/massa/backend/internal/mailer"
 	"github.com/isAdamBailey/massa/backend/internal/users"
+	"github.com/isAdamBailey/massa/backend/internal/weights"
 )
 
 func main() {
@@ -51,6 +53,9 @@ func main() {
 
 	authSvc := auth.NewService(queries, userRepo, mailSvc, cfg.CookieSigningSecret, cfg.CookieSecure, cfg.AppBaseURL)
 
+	heightResolver := heights.NewResolver(queries)
+	weightsSvc := weights.NewService(queries, heightResolver)
+
 	var googleDeps *httpapi.GoogleHealthDeps
 	if cfg.GoogleOAuth.Enabled {
 		oauthConfig := googlehealth.OAuthConfig(cfg.GoogleOAuth)
@@ -75,7 +80,7 @@ func main() {
 		MaxAge:           300,
 	}))
 
-	httpapi.NewHandler(authSvc, userRepo, cfg.CookieSecure, cfg.AppBaseURL, googleDeps).Register(r)
+	httpapi.NewHandler(authSvc, userRepo, weightsSvc, cfg.CookieSecure, cfg.AppBaseURL, googleDeps).Register(r)
 
 	log.Printf("listening on :%s", cfg.Port)
 	if err := http.ListenAndServe(":"+cfg.Port, r); err != nil {

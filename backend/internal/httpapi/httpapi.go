@@ -19,6 +19,7 @@ const magicLinkRateLimit = 5
 type Handler struct {
 	auth         *auth.Service
 	users        users.Repository
+	weights      WeightsService
 	cookieSecure bool
 	appBaseURL   string
 	google       *GoogleHealthDeps
@@ -26,10 +27,11 @@ type Handler struct {
 
 // NewHandler constructs a Handler. google may be nil, in which case the
 // /api/google/* routes are not registered.
-func NewHandler(authSvc *auth.Service, userRepo users.Repository, cookieSecure bool, appBaseURL string, google *GoogleHealthDeps) *Handler {
+func NewHandler(authSvc *auth.Service, userRepo users.Repository, weightsSvc WeightsService, cookieSecure bool, appBaseURL string, google *GoogleHealthDeps) *Handler {
 	return &Handler{
 		auth:         authSvc,
 		users:        userRepo,
+		weights:      weightsSvc,
 		cookieSecure: cookieSecure,
 		appBaseURL:   appBaseURL,
 		google:       google,
@@ -50,6 +52,17 @@ func (h *Handler) Register(r chi.Router) {
 			r.Use(h.requireAuth)
 			r.Get("/me", h.me)
 			r.With(h.requireCSRF).Post("/auth/logout", h.logout)
+
+			r.Get("/weights", h.listWeights)
+			r.With(h.requireCSRF).Post("/weights", h.createWeight)
+			r.Get("/weights/{id}", h.getWeight)
+			r.With(h.requireCSRF).Patch("/weights/{id}", h.updateWeight)
+			r.With(h.requireCSRF).Delete("/weights/{id}", h.deleteWeight)
+
+			r.Get("/settings", h.getSettings)
+			r.With(h.requireCSRF).Put("/settings", h.updateSettings)
+
+			r.Get("/bmi/latest", h.bmiLatest)
 
 			if h.google != nil {
 				r.Get("/google/auth-url", h.googleAuthURL)

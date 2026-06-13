@@ -15,20 +15,28 @@ type Querier interface {
 	CreateMagicLinkToken(ctx context.Context, arg CreateMagicLinkTokenParams) (MagicLinkToken, error)
 	CreateSession(ctx context.Context, arg CreateSessionParams) (Session, error)
 	CreateUser(ctx context.Context, email string) (User, error)
+	CreateWeightEntry(ctx context.Context, arg CreateWeightEntryParams) (WeightEntry, error)
 	DeleteAllowedUserByEmail(ctx context.Context, email string) error
 	DeleteGoogleOAuthCredentials(ctx context.Context, userID pgtype.UUID) error
 	DeleteSession(ctx context.Context, id pgtype.UUID) error
+	DeleteWeightEntry(ctx context.Context, arg DeleteWeightEntryParams) (int64, error)
 	GetGoogleOAuthCredentialsByUserID(ctx context.Context, userID pgtype.UUID) (GoogleOauthCredential, error)
+	GetLatestHeightEntry(ctx context.Context, userID pgtype.UUID) (HeightEntry, error)
+	GetLatestWeightEntry(ctx context.Context, userID pgtype.UUID) (WeightEntry, error)
 	GetSession(ctx context.Context, id pgtype.UUID) (Session, error)
 	GetSyncMetadataByUserID(ctx context.Context, userID pgtype.UUID) (SyncMetadatum, error)
 	GetUserByEmail(ctx context.Context, email string) (User, error)
 	GetUserByID(ctx context.Context, id pgtype.UUID) (User, error)
 	GetValidMagicLinkToken(ctx context.Context, tokenHash string) (MagicLinkToken, error)
+	GetWeightEntryByID(ctx context.Context, arg GetWeightEntryByIDParams) (WeightEntry, error)
 	IsEmailAllowed(ctx context.Context, email string) (bool, error)
 	ListAllowedEmails(ctx context.Context) ([]string, error)
+	ListWeightEntries(ctx context.Context, arg ListWeightEntriesParams) ([]WeightEntry, error)
 	MarkMagicLinkTokenUsed(ctx context.Context, id pgtype.UUID) error
 	UpdateLastLoginAt(ctx context.Context, id pgtype.UUID) error
 	UpdateSyncWatermarks(ctx context.Context, arg UpdateSyncWatermarksParams) error
+	UpdateUserSettings(ctx context.Context, arg UpdateUserSettingsParams) (User, error)
+	UpdateWeightEntry(ctx context.Context, arg UpdateWeightEntryParams) (WeightEntry, error)
 	UpsertAllowedUser(ctx context.Context, email string) error
 	UpsertGoogleOAuthCredentials(ctx context.Context, arg UpsertGoogleOAuthCredentialsParams) (GoogleOauthCredential, error)
 	UpsertHeightEntryByGoogleID(ctx context.Context, arg UpsertHeightEntryByGoogleIDParams) (HeightEntry, error)

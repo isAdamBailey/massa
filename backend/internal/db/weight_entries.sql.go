@@ -11,6 +11,204 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const createWeightEntry = `-- name: CreateWeightEntry :one
+INSERT INTO weight_entries (user_id, weight_kg, recorded_at, bmi, height_used_cm, source)
+VALUES ($1, $2, $3, $4, $5, 'manual')
+RETURNING id, user_id, weight_kg, recorded_at, bmi, height_used_cm, source, google_data_point_id, google_sync_status, created_at, updated_at
+`
+
+type CreateWeightEntryParams struct {
+	UserID       pgtype.UUID        `json:"user_id"`
+	WeightKg     pgtype.Numeric     `json:"weight_kg"`
+	RecordedAt   pgtype.Timestamptz `json:"recorded_at"`
+	Bmi          pgtype.Numeric     `json:"bmi"`
+	HeightUsedCm pgtype.Numeric     `json:"height_used_cm"`
+}
+
+func (q *Queries) CreateWeightEntry(ctx context.Context, arg CreateWeightEntryParams) (WeightEntry, error) {
+	row := q.db.QueryRow(ctx, createWeightEntry,
+		arg.UserID,
+		arg.WeightKg,
+		arg.RecordedAt,
+		arg.Bmi,
+		arg.HeightUsedCm,
+	)
+	var i WeightEntry
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.WeightKg,
+		&i.RecordedAt,
+		&i.Bmi,
+		&i.HeightUsedCm,
+		&i.Source,
+		&i.GoogleDataPointID,
+		&i.GoogleSyncStatus,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const deleteWeightEntry = `-- name: DeleteWeightEntry :execrows
+DELETE FROM weight_entries WHERE id = $1 AND user_id = $2
+`
+
+type DeleteWeightEntryParams struct {
+	ID     pgtype.UUID `json:"id"`
+	UserID pgtype.UUID `json:"user_id"`
+}
+
+func (q *Queries) DeleteWeightEntry(ctx context.Context, arg DeleteWeightEntryParams) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteWeightEntry, arg.ID, arg.UserID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const getLatestWeightEntry = `-- name: GetLatestWeightEntry :one
+SELECT id, user_id, weight_kg, recorded_at, bmi, height_used_cm, source, google_data_point_id, google_sync_status, created_at, updated_at FROM weight_entries
+WHERE user_id = $1
+ORDER BY recorded_at DESC
+LIMIT 1
+`
+
+func (q *Queries) GetLatestWeightEntry(ctx context.Context, userID pgtype.UUID) (WeightEntry, error) {
+	row := q.db.QueryRow(ctx, getLatestWeightEntry, userID)
+	var i WeightEntry
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.WeightKg,
+		&i.RecordedAt,
+		&i.Bmi,
+		&i.HeightUsedCm,
+		&i.Source,
+		&i.GoogleDataPointID,
+		&i.GoogleSyncStatus,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const getWeightEntryByID = `-- name: GetWeightEntryByID :one
+SELECT id, user_id, weight_kg, recorded_at, bmi, height_used_cm, source, google_data_point_id, google_sync_status, created_at, updated_at FROM weight_entries WHERE id = $1 AND user_id = $2
+`
+
+type GetWeightEntryByIDParams struct {
+	ID     pgtype.UUID `json:"id"`
+	UserID pgtype.UUID `json:"user_id"`
+}
+
+func (q *Queries) GetWeightEntryByID(ctx context.Context, arg GetWeightEntryByIDParams) (WeightEntry, error) {
+	row := q.db.QueryRow(ctx, getWeightEntryByID, arg.ID, arg.UserID)
+	var i WeightEntry
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.WeightKg,
+		&i.RecordedAt,
+		&i.Bmi,
+		&i.HeightUsedCm,
+		&i.Source,
+		&i.GoogleDataPointID,
+		&i.GoogleSyncStatus,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const listWeightEntries = `-- name: ListWeightEntries :many
+SELECT id, user_id, weight_kg, recorded_at, bmi, height_used_cm, source, google_data_point_id, google_sync_status, created_at, updated_at FROM weight_entries
+WHERE user_id = $1
+  AND ($2::timestamptz IS NULL OR recorded_at >= $2)
+  AND ($3::timestamptz IS NULL OR recorded_at <= $3)
+ORDER BY recorded_at ASC
+`
+
+type ListWeightEntriesParams struct {
+	UserID pgtype.UUID        `json:"user_id"`
+	From   pgtype.Timestamptz `json:"from"`
+	To     pgtype.Timestamptz `json:"to"`
+}
+
+func (q *Queries) ListWeightEntries(ctx context.Context, arg ListWeightEntriesParams) ([]WeightEntry, error) {
+	rows, err := q.db.Query(ctx, listWeightEntries, arg.UserID, arg.From, arg.To)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []WeightEntry
+	for rows.Next() {
+		var i WeightEntry
+		if err := rows.Scan(
+			&i.ID,
+			&i.UserID,
+			&i.WeightKg,
+			&i.RecordedAt,
+			&i.Bmi,
+			&i.HeightUsedCm,
+			&i.Source,
+			&i.GoogleDataPointID,
+			&i.GoogleSyncStatus,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const updateWeightEntry = `-- name: UpdateWeightEntry :one
+UPDATE weight_entries
+SET weight_kg = $3, recorded_at = $4, bmi = $5, height_used_cm = $6, updated_at = now()
+WHERE id = $1 AND user_id = $2
+RETURNING id, user_id, weight_kg, recorded_at, bmi, height_used_cm, source, google_data_point_id, google_sync_status, created_at, updated_at
+`
+
+type UpdateWeightEntryParams struct {
+	ID           pgtype.UUID        `json:"id"`
+	UserID       pgtype.UUID        `json:"user_id"`
+	WeightKg     pgtype.Numeric     `json:"weight_kg"`
+	RecordedAt   pgtype.Timestamptz `json:"recorded_at"`
+	Bmi          pgtype.Numeric     `json:"bmi"`
+	HeightUsedCm pgtype.Numeric     `json:"height_used_cm"`
+}
+
+func (q *Queries) UpdateWeightEntry(ctx context.Context, arg UpdateWeightEntryParams) (WeightEntry, error) {
+	row := q.db.QueryRow(ctx, updateWeightEntry,
+		arg.ID,
+		arg.UserID,
+		arg.WeightKg,
+		arg.RecordedAt,
+		arg.Bmi,
+		arg.HeightUsedCm,
+	)
+	var i WeightEntry
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.WeightKg,
+		&i.RecordedAt,
+		&i.Bmi,
+		&i.HeightUsedCm,
+		&i.Source,
+		&i.GoogleDataPointID,
+		&i.GoogleSyncStatus,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const upsertWeightEntryByGoogleID = `-- name: UpsertWeightEntryByGoogleID :one
 INSERT INTO weight_entries (user_id, weight_kg, recorded_at, source, google_data_point_id)
 VALUES ($1, $2, $3, 'google', $4)
