@@ -29,6 +29,12 @@ type MetricMode = 'weight' | 'bmi'
 const viewMode = defineModel<ViewMode>('viewMode', { default: 'daily' })
 const metricMode = defineModel<MetricMode>('metricMode', { default: 'weight' })
 
+const VERDIGRIS = 'oklch(0.70 0.09 170)'
+const FOG = 'oklch(0.64 0.01 170)'
+const HAIRLINE = 'oklch(0.32 0.006 170)'
+const GRAPHITE = 'oklch(0.28 0.006 170)'
+const MIST = 'oklch(0.95 0.003 170)'
+
 const chartData = computed(() => {
   if (metricMode.value === 'bmi') {
     const data = viewMode.value === 'weekly'
@@ -40,8 +46,8 @@ const chartData = computed(() => {
         {
           label: viewMode.value === 'weekly' ? 'Weekly avg BMI' : 'BMI',
           data,
-          borderColor: '#16a34a',
-          backgroundColor: '#16a34a',
+          borderColor: VERDIGRIS,
+          backgroundColor: VERDIGRIS,
           tension: 0.2,
           pointRadius: 3
         }
@@ -61,8 +67,8 @@ const chartData = computed(() => {
       {
         label: viewMode.value === 'weekly' ? `Weekly avg (${unitLabel})` : `Weight (${unitLabel})`,
         data,
-        borderColor: '#2563eb',
-        backgroundColor: '#2563eb',
+        borderColor: VERDIGRIS,
+        backgroundColor: VERDIGRIS,
         tension: 0.2,
         pointRadius: 3
       }
@@ -78,10 +84,26 @@ const chartOptions = computed(() => ({
   scales: {
     x: {
       type: 'time' as const,
-      time: { unit: viewMode.value === 'weekly' ? 'week' as const : 'day' as const }
+      time: { unit: viewMode.value === 'weekly' ? 'week' as const : 'day' as const },
+      ticks: { color: FOG },
+      grid: { color: HAIRLINE }
     },
     y: {
-      beginAtZero: false
+      beginAtZero: false,
+      ticks: { color: FOG },
+      grid: { color: HAIRLINE }
+    }
+  },
+  plugins: {
+    tooltip: {
+      backgroundColor: GRAPHITE,
+      titleColor: MIST,
+      bodyColor: MIST,
+      borderColor: HAIRLINE,
+      borderWidth: 1,
+      padding: 8,
+      cornerRadius: 6,
+      displayColors: false
     }
   }
 }))
@@ -89,20 +111,20 @@ const chartOptions = computed(() => ({
 
 <template>
   <div>
-    <div class="mb-2 flex flex-wrap justify-between gap-2">
+    <div class="mb-3 flex flex-wrap justify-between gap-2">
       <div class="flex gap-2">
         <button
           type="button"
-          class="rounded-md px-3 py-1 text-sm font-medium"
-          :class="metricMode === 'weight' ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-800 hover:bg-gray-300'"
+          class="rounded-sm px-3 py-1.5 text-label transition-colors duration-150"
+          :class="metricMode === 'weight' ? 'bg-verdigris text-carbon' : 'bg-graphite text-mist hover:bg-graphite-hover'"
           @click="metricMode = 'weight'"
         >
           Weight
         </button>
         <button
           type="button"
-          class="rounded-md px-3 py-1 text-sm font-medium"
-          :class="metricMode === 'bmi' ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-800 hover:bg-gray-300'"
+          class="rounded-sm px-3 py-1.5 text-label transition-colors duration-150"
+          :class="metricMode === 'bmi' ? 'bg-verdigris text-carbon' : 'bg-graphite text-mist hover:bg-graphite-hover'"
           @click="metricMode = 'bmi'"
         >
           BMI
@@ -111,16 +133,16 @@ const chartOptions = computed(() => ({
       <div class="flex gap-2">
         <button
           type="button"
-          class="rounded-md px-3 py-1 text-sm font-medium"
-          :class="viewMode === 'daily' ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-800 hover:bg-gray-300'"
+          class="rounded-sm px-3 py-1.5 text-label transition-colors duration-150"
+          :class="viewMode === 'daily' ? 'bg-verdigris text-carbon' : 'bg-graphite text-mist hover:bg-graphite-hover'"
           @click="viewMode = 'daily'"
         >
           Daily
         </button>
         <button
           type="button"
-          class="rounded-md px-3 py-1 text-sm font-medium"
-          :class="viewMode === 'weekly' ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-800 hover:bg-gray-300'"
+          class="rounded-sm px-3 py-1.5 text-label transition-colors duration-150"
+          :class="viewMode === 'weekly' ? 'bg-verdigris text-carbon' : 'bg-graphite text-mist hover:bg-graphite-hover'"
           @click="viewMode = 'weekly'"
         >
           Weekly
@@ -130,7 +152,7 @@ const chartOptions = computed(() => ({
     <div class="h-64">
       <p
         v-if="!hasData"
-        class="flex h-full items-center justify-center text-sm text-gray-600"
+        class="flex h-full items-center justify-center text-body text-fog"
       >
         {{ metricMode === 'bmi' ? 'No BMI data available.' : 'No weight entries yet.' }}
       </p>

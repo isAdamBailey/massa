@@ -64,22 +64,22 @@ async function onSaveSettings() {
 </script>
 
 <template>
-  <div class="min-h-screen bg-gray-50 px-4 py-8">
-    <div class="mx-auto max-w-md space-y-6">
-      <div class="flex items-center justify-between">
-        <h1 class="text-2xl font-semibold text-gray-900">
+  <div class="min-h-screen bg-carbon px-4 py-6 text-mist sm:px-6 sm:py-10">
+    <div class="mx-auto flex max-w-xl flex-col gap-4">
+      <header class="flex items-center justify-between">
+        <h1 class="text-headline font-sans">
           Settings
         </h1>
         <NuxtLink
           to="/"
-          class="text-sm font-medium text-blue-600 hover:underline"
+          class="rounded-sm bg-graphite px-4 py-2 text-label text-mist transition-colors duration-150 hover:bg-graphite-hover"
         >
           Back
         </NuxtLink>
-      </div>
+      </header>
 
-      <section class="space-y-3 rounded-md border border-gray-200 bg-white p-4">
-        <h2 class="text-lg font-medium text-gray-900">
+      <section class="space-y-3 rounded-md bg-slate p-5">
+        <h2 class="text-title font-sans">
           Units &amp; height
         </h2>
 
@@ -90,12 +90,12 @@ async function onSaveSettings() {
           <div>
             <label
               for="units-preference"
-              class="block text-xs text-gray-500"
+              class="block text-label text-fog"
             >Units</label>
             <select
               id="units-preference"
               v-model="unitsPreference"
-              class="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+              class="mt-1 w-full rounded-sm bg-graphite px-3 py-2 text-body text-mist"
             >
               <option value="metric">
                 Metric (kg, cm)
@@ -109,7 +109,7 @@ async function onSaveSettings() {
           <div>
             <label
               for="manual-height"
-              class="block text-xs text-gray-500"
+              class="block text-label text-fog"
             >
               Height override ({{ unitsPreference === 'imperial' ? 'in' : 'cm' }})
             </label>
@@ -120,19 +120,19 @@ async function onSaveSettings() {
               step="0.1"
               min="0"
               placeholder="Used when no synced height is available"
-              class="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+              class="mt-1 w-full rounded-sm bg-graphite px-3 py-2 text-body text-mist placeholder:text-[oklch(0.70_0.01_170)]"
             >
           </div>
 
           <p
             v-if="saveError"
-            class="text-sm text-red-600"
+            class="text-body text-ember"
           >
             {{ saveError }}
           </p>
           <p
             v-else-if="saved"
-            class="text-sm text-green-700"
+            class="text-body text-fog"
           >
             Settings saved.
           </p>
@@ -140,56 +140,58 @@ async function onSaveSettings() {
           <button
             type="submit"
             :disabled="saving"
-            class="rounded-md bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+            class="rounded-sm bg-verdigris px-4 py-2 text-label text-carbon transition-colors duration-150 hover:bg-verdigris-hover disabled:opacity-50"
           >
             {{ saving ? 'Saving…' : 'Save' }}
           </button>
         </form>
       </section>
 
-      <section class="space-y-3 rounded-md border border-gray-200 bg-white p-4">
-        <h2 class="text-lg font-medium text-gray-900">
+      <section class="space-y-3 rounded-md bg-slate p-5">
+        <h2 class="text-title font-sans">
           Google Health
         </h2>
 
         <p
           v-if="google.loading"
-          class="text-sm text-gray-600"
+          class="text-body text-fog"
         >
           Loading…
         </p>
 
         <template v-else>
           <p
-            v-if="google.status.connected"
-            class="text-sm font-medium text-green-700"
+            class="text-body"
+            :class="google.status.connected ? 'text-mist' : 'text-fog'"
           >
-            Connected
-          </p>
-          <p
-            v-else
-            class="text-sm text-gray-600"
-          >
-            Not connected
+            {{ google.status.connected ? 'Connected' : 'Not connected' }}
           </p>
 
           <dl
             v-if="google.status.connected"
-            class="space-y-1 text-sm text-gray-600"
+            class="space-y-1"
           >
-            <div class="flex justify-between">
-              <dt>Last full backfill</dt>
-              <dd>{{ formatDate(google.status.lastFullBackfillAt) }}</dd>
+            <div class="flex justify-between text-body">
+              <dt class="text-fog">
+                Last full backfill
+              </dt>
+              <dd class="text-mist">
+                {{ formatDate(google.status.lastFullBackfillAt) }}
+              </dd>
             </div>
-            <div class="flex justify-between">
-              <dt>Last sync</dt>
-              <dd>{{ formatDate(google.status.lastIncrementalSyncAt) }}</dd>
+            <div class="flex justify-between text-body">
+              <dt class="text-fog">
+                Last sync
+              </dt>
+              <dd class="text-mist">
+                {{ formatDate(google.status.lastIncrementalSyncAt) }}
+              </dd>
             </div>
           </dl>
 
           <p
             v-if="google.error"
-            class="text-sm text-red-600"
+            class="text-body text-ember"
           >
             {{ google.error }}
           </p>
@@ -198,7 +200,7 @@ async function onSaveSettings() {
             <button
               v-if="!google.status.connected"
               type="button"
-              class="rounded-md bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700"
+              class="rounded-sm bg-verdigris px-4 py-2 text-label text-carbon transition-colors duration-150 hover:bg-verdigris-hover"
               @click="google.connect"
             >
               Connect Google Health
@@ -207,14 +209,14 @@ async function onSaveSettings() {
               <button
                 type="button"
                 :disabled="google.syncing"
-                class="rounded-md bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+                class="rounded-sm bg-verdigris px-4 py-2 text-label text-carbon transition-colors duration-150 hover:bg-verdigris-hover disabled:opacity-50"
                 @click="google.sync"
               >
                 {{ google.syncing ? 'Syncing…' : 'Sync now' }}
               </button>
               <button
                 type="button"
-                class="rounded-md bg-gray-200 px-3 py-2 text-sm font-medium text-gray-800 hover:bg-gray-300"
+                class="rounded-sm bg-graphite px-4 py-2 text-label text-mist transition-colors duration-150 hover:bg-graphite-hover"
                 @click="google.disconnect"
               >
                 Disconnect

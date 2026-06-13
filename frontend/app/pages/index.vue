@@ -80,100 +80,96 @@ async function onLogout() {
 
 function formatDate(value?: string) {
   if (!value) {
-    return 'Never'
+    return 'never'
   }
   return new Date(value).toLocaleString()
 }
 </script>
 
 <template>
-  <div class="min-h-screen bg-gray-50 px-4 py-8">
-    <div class="mx-auto max-w-2xl space-y-4">
-      <div class="flex items-center justify-between">
-        <h1 class="text-2xl font-semibold text-gray-900">
+  <div class="min-h-screen bg-carbon px-4 py-6 text-mist sm:px-6 sm:py-10">
+    <div class="mx-auto flex max-w-3xl flex-col gap-4">
+      <header class="flex items-center justify-between">
+        <h1 class="text-headline font-sans">
           Massa
         </h1>
         <div class="flex gap-2">
           <NuxtLink
             to="/settings"
-            class="rounded-md bg-gray-200 px-3 py-2 text-sm font-medium text-gray-800 hover:bg-gray-300"
+            class="rounded-sm bg-graphite px-4 py-2 text-label text-mist transition-colors duration-150 hover:bg-graphite-hover"
           >
             Settings
           </NuxtLink>
           <button
             type="button"
-            class="rounded-md bg-gray-200 px-3 py-2 text-sm font-medium text-gray-800 hover:bg-gray-300"
+            class="rounded-sm bg-graphite px-4 py-2 text-label text-mist transition-colors duration-150 hover:bg-graphite-hover"
             @click="onLogout"
           >
             Log out
           </button>
         </div>
-      </div>
+      </header>
 
-      <p class="text-sm text-gray-600">
+      <p class="text-label text-fog">
         Signed in as {{ auth.user?.email }}
+        <template v-if="google.status.connected">
+          · Google Health synced {{ formatDate(google.status.lastIncrementalSyncAt) }}
+        </template>
       </p>
-
-      <div
-        v-if="google.status.connected"
-        class="rounded-md border border-gray-200 bg-white p-3 text-sm text-gray-600"
-      >
-        Google Health connected. Last synced {{ formatDate(google.status.lastIncrementalSyncAt) }}.
-      </div>
 
       <section
         v-if="latestEntry"
-        class="grid grid-cols-2 gap-3 rounded-md border border-gray-200 bg-white p-4 sm:grid-cols-3"
+        class="grid grid-cols-2 gap-x-6 gap-y-5 rounded-md bg-slate p-5 sm:grid-cols-4"
       >
         <div>
-          <dt class="text-xs text-gray-500">
+          <dt class="text-label text-fog">
             Latest weight
           </dt>
-          <dd class="text-lg font-semibold text-gray-900">
-            {{ latestWeightDisplay }} {{ weightUnitLabel }}
+          <dd class="text-display font-mono tabular-nums text-verdigris">
+            {{ latestWeightDisplay }}<span class="text-label font-sans text-fog"> {{ weightUnitLabel }}</span>
           </dd>
         </div>
         <div v-if="weeklyAverageDisplay">
-          <dt class="text-xs text-gray-500">
+          <dt class="text-label text-fog">
             This week's avg
           </dt>
-          <dd class="text-lg font-semibold text-gray-900">
-            {{ weeklyAverageDisplay }} {{ weightUnitLabel }}
+          <dd class="text-display font-mono tabular-nums text-mist">
+            {{ weeklyAverageDisplay }}<span class="text-label font-sans text-fog"> {{ weightUnitLabel }}</span>
           </dd>
         </div>
         <div v-if="latestEntry.bmi">
-          <dt class="text-xs text-gray-500">
+          <dt class="text-label text-fog">
             BMI
           </dt>
-          <dd class="text-lg font-semibold text-gray-900">
+          <dd class="text-display font-mono tabular-nums text-mist">
             {{ latestEntry.bmi.toFixed(1) }}
           </dd>
         </div>
         <div v-if="latestEntry.bmi">
-          <dt class="text-xs text-gray-500">
+          <dt class="text-label text-fog">
             Category
           </dt>
-          <dd class="text-lg font-semibold text-gray-900">
+          <dd class="text-title font-sans text-mist">
             {{ category(latestEntry.bmi) }}
           </dd>
         </div>
       </section>
 
-      <section class="space-y-3 rounded-md border border-gray-200 bg-white p-4">
-        <h2 class="text-lg font-medium text-gray-900">
+      <section class="space-y-3 rounded-md bg-slate p-5">
+        <h2 class="text-title font-sans">
           Add weight entry
         </h2>
         <WeightEntryForm />
       </section>
 
-      <section class="space-y-3 rounded-md border border-gray-200 bg-white p-4">
+      <section class="space-y-4 rounded-md bg-slate p-5">
         <div class="flex flex-wrap gap-2">
           <button
             v-for="preset in rangePresets"
             :key="preset.value"
             type="button"
-            class="rounded-md px-3 py-1 text-sm font-medium"
-            :class="rangePreset === preset.value ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-800 hover:bg-gray-300'"
+            class="rounded-sm px-3 py-1.5 text-label transition-colors duration-150"
+            :class="rangePreset === preset.value ? 'bg-verdigris text-carbon' : 'bg-graphite text-mist hover:bg-graphite-hover'"
             @click="rangePreset = preset.value"
           >
             {{ preset.label }}
@@ -182,7 +178,7 @@ function formatDate(value?: string) {
 
         <p
           v-if="weights.loading"
-          class="text-sm text-gray-600"
+          class="text-body text-fog"
         >
           Loading…
         </p>
@@ -196,14 +192,14 @@ function formatDate(value?: string) {
 
         <p
           v-if="weights.error"
-          class="text-sm text-red-600"
+          class="text-body text-ember"
         >
           {{ weights.error }}
         </p>
       </section>
 
-      <section class="space-y-3 rounded-md border border-gray-200 bg-white p-4">
-        <h2 class="text-lg font-medium text-gray-900">
+      <section class="space-y-3 rounded-md bg-slate p-5">
+        <h2 class="text-title font-sans">
           Recent entries (last 7 days)
         </h2>
         <WeightEntryList />

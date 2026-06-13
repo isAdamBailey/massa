@@ -52,11 +52,11 @@ async function onSubmit() {
     class="space-y-3"
     @submit.prevent="onSubmit"
   >
-    <div class="flex flex-wrap gap-2">
+    <div class="flex flex-wrap gap-3">
       <div class="flex-1">
         <label
           for="weight-input"
-          class="block text-xs text-gray-500"
+          class="block text-label text-fog"
         >Weight ({{ unitLabel }})</label>
         <input
           id="weight-input"
@@ -64,26 +64,26 @@ async function onSubmit() {
           type="number"
           step="0.1"
           min="0"
-          class="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+          class="mt-1 w-full rounded-sm bg-graphite px-3 py-2 text-body text-mist"
         >
       </div>
       <div class="flex-1">
         <label
           for="date-input"
-          class="block text-xs text-gray-500"
+          class="block text-label text-fog"
         >Date and time</label>
         <input
           id="date-input"
           v-model="dateInput"
           type="datetime-local"
-          class="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+          class="mt-1 w-full rounded-sm bg-graphite px-3 py-2 text-body text-mist"
         >
       </div>
     </div>
 
     <p
       v-if="formError"
-      class="text-sm text-red-600"
+      class="text-body text-ember"
     >
       {{ formError }}
     </p>
@@ -91,7 +91,7 @@ async function onSubmit() {
     <button
       type="submit"
       :disabled="submitting"
-      class="rounded-md bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+      class="rounded-sm bg-verdigris px-4 py-2 text-label text-carbon transition-colors duration-150 hover:bg-verdigris-hover disabled:opacity-50"
     >
       {{ submitting ? 'Saving…' : 'Add entry' }}
     </button>

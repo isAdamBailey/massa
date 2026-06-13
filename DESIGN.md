@@ -51,13 +51,13 @@ spacing:
 components:
   button-primary:
     backgroundColor: "{colors.verdigris}"
-    textColor: "{colors.mist}"
+    textColor: "{colors.carbon}"
     typography: "{typography.label}"
     rounded: "{rounded.sm}"
     padding: "10px 16px"
   button-primary-hover:
     backgroundColor: "{colors.verdigris-hover}"
-    textColor: "{colors.mist}"
+    textColor: "{colors.carbon}"
     rounded: "{rounded.sm}"
   button-secondary:
     backgroundColor: "{colors.graphite}"
@@ -127,7 +127,9 @@ A near-monochrome dark palette with a single living accent. Strategy:
   entry, Connect, Sync). Named for oxidized copper/teal patina — a color
   that looks like it's always been there, not one that was just applied.
 - **Verdigris Hover** (`oklch(0.76 0.09 170)`): brightened verdigris for
-  hover/active states on filled primary elements. Text on both stays Mist.
+  hover/active states on filled primary elements. Text on both is Carbon —
+  Mist-on-Verdigris falls to ~2.2:1, well under the AA floor, so filled
+  Verdigris elements always pair with Carbon text (~7.6:1).
 
 ### Neutral
 - **Carbon** (`oklch(0.16 0 0)`): the base surface — page background. Pure
@@ -208,7 +210,7 @@ hover. If an element needs to feel interactive, shift it one tonal step
 
 ### Buttons
 - **Shape:** 6px radius (`{rounded.sm}`) — precise, not pillowed.
-- **Primary** (`button-primary`): Verdigris fill, Mist text, `10px 16px`
+- **Primary** (`button-primary`): Verdigris fill, Carbon text, `10px 16px`
   padding, Label typography. Used once per view for the dominant action (Add
   entry, Connect Google Health, Sync now).
 - **Secondary / Ghost** (`button-secondary`): Graphite fill, Mist text. Used
@@ -223,7 +225,7 @@ hover. If an element needs to feel interactive, shift it one tonal step
 ### Segmented Controls (range presets, daily/weekly, weight/BMI toggles)
 - **Style:** a row of `button-secondary`-shaped pills (6px radius, Graphite
   background, Mist text) where the active option becomes `button-primary`
-  (Verdigris fill, Mist text). Exactly one option per group may glow — this
+  (Verdigris fill, Carbon text). Exactly one option per group may glow — this
   is one of the system's sanctioned uses of the Single Glow Rule.
 
 ### Cards / Containers (`surface-card`)

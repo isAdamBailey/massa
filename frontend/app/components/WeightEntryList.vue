@@ -93,30 +93,30 @@ async function onDelete(id: string) {
 </script>
 
 <template>
-  <div class="space-y-2">
+  <div>
     <p
       v-if="!sortedEntries.length"
-      class="text-sm text-gray-600"
+      class="text-body text-fog"
     >
       No entries in the last 7 days.
     </p>
     <ul
       v-else
-      class="divide-y divide-gray-200"
+      class="divide-y divide-hairline"
     >
       <li
         v-for="entry in sortedEntries"
         :key="entry.id"
-        class="py-2"
+        class="py-3 first:pt-0 last:pb-0"
       >
         <div
           v-if="editingId === entry.id"
-          class="flex flex-wrap items-end gap-2"
+          class="flex flex-wrap items-end gap-3"
         >
           <div class="flex-1">
             <label
               :for="`edit-weight-${entry.id}`"
-              class="block text-xs text-gray-500"
+              class="block text-label text-fog"
             >Weight ({{ unitLabel }})</label>
             <input
               :id="`edit-weight-${entry.id}`"
@@ -124,33 +124,33 @@ async function onDelete(id: string) {
               type="number"
               step="0.1"
               min="0"
-              class="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+              class="mt-1 w-full rounded-sm bg-graphite px-3 py-2 text-body text-mist"
             >
           </div>
           <div class="flex-1">
             <label
               :for="`edit-date-${entry.id}`"
-              class="block text-xs text-gray-500"
+              class="block text-label text-fog"
             >Date and time</label>
             <input
               :id="`edit-date-${entry.id}`"
               v-model="editDateInput"
               type="datetime-local"
-              class="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+              class="mt-1 w-full rounded-sm bg-graphite px-3 py-2 text-body text-mist"
             >
           </div>
           <div class="flex gap-2">
             <button
               type="button"
               :disabled="savingId === entry.id"
-              class="rounded-md bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+              class="rounded-sm bg-verdigris px-3 py-2 text-label text-carbon transition-colors duration-150 hover:bg-verdigris-hover disabled:opacity-50"
               @click="saveEdit(entry.id)"
             >
               {{ savingId === entry.id ? 'Saving…' : 'Save' }}
             </button>
             <button
               type="button"
-              class="rounded-md bg-gray-200 px-3 py-2 text-sm font-medium text-gray-800 hover:bg-gray-300"
+              class="rounded-sm bg-graphite px-3 py-2 text-label text-mist transition-colors duration-150 hover:bg-graphite-hover"
               @click="cancelEdit"
             >
               Cancel
@@ -158,7 +158,7 @@ async function onDelete(id: string) {
           </div>
           <p
             v-if="rowError"
-            class="w-full text-sm text-red-600"
+            class="w-full text-body text-ember"
           >
             {{ rowError }}
           </p>
@@ -169,14 +169,14 @@ async function onDelete(id: string) {
           class="flex items-center justify-between gap-2"
         >
           <div>
-            <p class="text-sm font-medium text-gray-900">
+            <p class="text-body text-mist">
               {{ displayWeight(entry.weightKg) }} {{ unitLabel }}
               <span
                 v-if="entry.bmi"
-                class="text-gray-500"
+                class="text-fog"
               >· BMI {{ entry.bmi.toFixed(1) }}</span>
             </p>
-            <p class="text-xs text-gray-500">
+            <p class="text-label text-fog">
               {{ formatDateTime(entry.recordedAt) }}
               <span v-if="entry.source === 'google'">· Google Health</span>
             </p>
@@ -184,7 +184,7 @@ async function onDelete(id: string) {
           <div class="flex gap-2">
             <button
               type="button"
-              class="rounded-md bg-gray-200 px-3 py-1 text-sm font-medium text-gray-800 hover:bg-gray-300"
+              class="rounded-sm bg-graphite px-3 py-1.5 text-label text-mist transition-colors duration-150 hover:bg-graphite-hover"
               @click="startEdit(entry)"
             >
               Edit
@@ -192,7 +192,7 @@ async function onDelete(id: string) {
             <button
               type="button"
               :disabled="deletingId === entry.id"
-              class="rounded-md bg-red-100 px-3 py-1 text-sm font-medium text-red-700 hover:bg-red-200 disabled:opacity-50"
+              class="rounded-sm px-3 py-1.5 text-label text-ember transition-colors duration-150 hover:underline disabled:opacity-50"
               @click="onDelete(entry.id)"
             >
               {{ deletingId === entry.id ? 'Deleting…' : 'Delete' }}

@@ -16,48 +16,85 @@ async function onSubmit() {
 </script>
 
 <template>
-  <div class="flex min-h-screen items-center justify-center bg-gray-50 px-4">
-    <div class="w-full max-w-sm space-y-6">
-      <h1 class="text-center text-2xl font-semibold text-gray-900">
-        Sign in to Massa
-      </h1>
+  <div class="flex min-h-screen items-center justify-center bg-carbon px-4 text-mist">
+    <div class="w-full max-w-sm space-y-8">
+      <div class="space-y-1 text-center">
+        <h1 class="text-headline font-sans">
+          Massa
+        </h1>
+        <p class="text-body text-fog">
+          Sign in with your email
+        </p>
+      </div>
 
-      <form
-        v-if="status !== 'sent'"
-        class="space-y-4"
-        @submit.prevent="onSubmit"
+      <Transition
+        name="fade"
+        mode="out-in"
       >
-        <input
-          v-model="email"
-          type="email"
-          required
-          placeholder="you@example.com"
-          autocomplete="email"
-          class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
+        <form
+          v-if="status !== 'sent'"
+          class="space-y-3"
+          @submit.prevent="onSubmit"
         >
-        <button
-          type="submit"
-          :disabled="status === 'sending'"
-          class="w-full rounded-md bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
-        >
-          {{ status === 'sending' ? 'Sending…' : 'Send sign-in link' }}
-        </button>
+          <div>
+            <label
+              for="email"
+              class="block text-label text-fog"
+            >Email</label>
+            <input
+              id="email"
+              v-model="email"
+              type="email"
+              required
+              placeholder="you@example.com"
+              autocomplete="email"
+              class="mt-1 w-full rounded-sm bg-graphite px-3 py-2 text-body text-mist placeholder:text-[oklch(0.70_0.01_170)]"
+            >
+          </div>
+
+          <button
+            type="submit"
+            :disabled="status === 'sending'"
+            class="w-full rounded-sm bg-verdigris px-4 py-2 text-label text-carbon transition-colors duration-150 hover:bg-verdigris-hover disabled:opacity-50"
+          >
+            {{ status === 'sending' ? 'Sending…' : 'Send sign-in link' }}
+          </button>
+
+          <p
+            v-if="status === 'error'"
+            class="text-body text-ember"
+          >
+            Something went wrong. Please try again.
+          </p>
+        </form>
 
         <p
-          v-if="status === 'error'"
-          class="text-sm text-red-600"
+          v-else
+          class="text-center text-body text-fog"
         >
-          Something went wrong. Please try again.
+          If that email is allowed to sign in, a link has been sent. Check your
+          inbox and click the link to continue.
         </p>
-      </form>
-
-      <p
-        v-else
-        class="text-center text-sm text-gray-600"
-      >
-        If that email is allowed to sign in, a link has been sent. Check your
-        inbox and click the link to continue.
-      </p>
+      </Transition>
     </div>
   </div>
 </template>
+
+<style scoped>
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 150ms ease-out;
+}
+
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fade-enter-active,
+  .fade-leave-active {
+    transition: none;
+  }
+}
+</style>
