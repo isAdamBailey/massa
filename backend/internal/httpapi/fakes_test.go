@@ -236,6 +236,18 @@ func (f *fakeWeightsService) Update(_ context.Context, userID, id uuid.UUID, wei
 	return existing.Entry, nil
 }
 
+func (f *fakeWeightsService) UpdateGoogleSync(_ context.Context, userID, id uuid.UUID, dataPointID *string, status string) (weights.Entry, error) {
+	existing, ok := f.entries[id]
+	if !ok || existing.userID != userID {
+		return weights.Entry{}, weights.ErrNotFound
+	}
+	existing.GoogleDataPointID = dataPointID
+	syncStatus := status
+	existing.GoogleSyncStatus = &syncStatus
+	f.entries[id] = existing
+	return existing.Entry, nil
+}
+
 func (f *fakeWeightsService) Delete(_ context.Context, userID, id uuid.UUID) error {
 	existing, ok := f.entries[id]
 	if !ok || existing.userID != userID {

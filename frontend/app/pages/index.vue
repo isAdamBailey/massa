@@ -7,9 +7,11 @@ const { category, kgToLb } = useBmi()
 
 type RangePreset = '7d' | '30d' | '90d' | '1y' | 'all'
 type ChartViewMode = 'daily' | 'weekly'
+type ChartMetricMode = 'weight' | 'bmi'
 
 const rangePreset = ref<RangePreset>('90d')
 const chartViewMode = ref<ChartViewMode>('daily')
+const chartMetricMode = ref<ChartMetricMode>('weight')
 
 const rangePresets: { value: RangePreset, label: string }[] = [
   { value: '7d', label: '7 days' },
@@ -60,8 +62,8 @@ const weeklyAverageDisplay = computed(() => {
     return null
   }
   const weight = settings.settings.unitsPreference === 'imperial'
-    ? kgToLb(average.averageKg)
-    : average.averageKg
+    ? kgToLb(average.average)
+    : average.average
   return weight.toFixed(1)
 })
 
@@ -187,6 +189,7 @@ function formatDate(value?: string) {
         <WeightChart
           v-else
           v-model:view-mode="chartViewMode"
+          v-model:metric-mode="chartMetricMode"
           :entries="weights.entries"
           :units-preference="settings.settings.unitsPreference"
         />
@@ -197,6 +200,13 @@ function formatDate(value?: string) {
         >
           {{ weights.error }}
         </p>
+      </section>
+
+      <section class="space-y-3 rounded-md border border-gray-200 bg-white p-4">
+        <h2 class="text-lg font-medium text-gray-900">
+          Recent entries (last 7 days)
+        </h2>
+        <WeightEntryList />
       </section>
     </div>
   </div>

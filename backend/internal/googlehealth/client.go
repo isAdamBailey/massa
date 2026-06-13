@@ -4,6 +4,7 @@
 package googlehealth
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -11,6 +12,7 @@ import (
 	"net/http"
 	"net/url"
 	"strconv"
+	"time"
 )
 
 // baseURL is the Google Health API v4 endpoint.
@@ -120,30 +122,84 @@ func (c *Client) listDataPoints(ctx context.Context, healthUserID, dataType, pag
 	return resp, nil
 }
 
+// UpsertWeightDataPoint creates or replaces the weight data point identified
+// by dataPointID in healthUserID's weight history.
+func (c *Client) UpsertWeightDataPoint(ctx context.Context, healthUserID, dataPointID string, weightGrams float64, recordedAt time.Time) (DataPoint, error) {
+	path := weightDataPointPath(healthUserID, dataPointID)
+	body := DataPoint{
+		Weight: &Weight{
+			WeightGrams: weightGrams,
+			SampleTime:  ObservationSampleTime{PhysicalTime: recordedAt.UTC().Format(time.RFC3339Nano)},
+		},
+	}
+
+	var resp DataPoint
+	if err := c.patch(ctx, path, body, &resp); err != nil {
+		return DataPoint{}, err
+	}
+	return resp, nil
+}
+
+// DeleteWeightDataPoint removes the weight data point identified by
+// dataPointID from healthUserID's weight history.
+func (c *Client) DeleteWeightDataPoint(ctx context.Context, healthUserID, dataPointID string) error {
+	return c.delete(ctx, weightDataPointPath(healthUserID, dataPointID))
+}
+
+func weightDataPointPath(healthUserID, dataPointID string) string {
+	return fmt.Sprintf("/users/%s/dataTypes/weight/dataPoints/%s", url.PathEscape(healthUserID), url.PathEscape(dataPointID))
+}
+
 func (c *Client) get(ctx context.Context, path string, query url.Values, out any) error {
 	reqURL := c.baseURL + path
 	if len(query) > 0 {
 		reqURL += "?" + query.Encode()
 	}
+	return c.do(ctx, http.MethodGet, reqURL, nil, out)
+}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, reqURL, nil)
+func (c *Client) patch(ctx context.Context, path string, body, out any) error {
+	return c.do(ctx, http.MethodPatch, c.baseURL+path, body, out)
+}
+
+func (c *Client) delete(ctx context.Context, path string) error {
+	return c.do(ctx, http.MethodDelete, c.baseURL+path, nil, nil)
+}
+
+func (c *Client) do(ctx context.Context, method, reqURL string, body, out any) error {
+	var bodyReader io.Reader
+	if body != nil {
+		encoded, err := json.Marshal(body)
+		if err != nil {
+			return fmt.Errorf("encode request body for %s: %w", reqURL, err)
+		}
+		bodyReader = bytes.NewReader(encoded)
+	}
+
+	req, err := http.NewRequestWithContext(ctx, method, reqURL, bodyReader)
 	if err != nil {
-		return fmt.Errorf("build request for %s: %w", path, err)
+		return fmt.Errorf("build request for %s: %w", reqURL, err)
+	}
+	if body != nil {
+		req.Header.Set("Content-Type", "application/json")
 	}
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
-		return fmt.Errorf("request %s: %w", path, err)
+		return fmt.Errorf("request %s: %w", reqURL, err)
 	}
 	defer func() { _ = resp.Body.Close() }()
 
-	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
-		return fmt.Errorf("request %s: unexpected status %d: %s", path, resp.StatusCode, body)
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		respBody, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
+		return fmt.Errorf("request %s: unexpected status %d: %s", reqURL, resp.StatusCode, respBody)
 	}
 
+	if out == nil {
+		return nil
+	}
 	if err := json.NewDecoder(resp.Body).Decode(out); err != nil {
-		return fmt.Errorf("decode response from %s: %w", path, err)
+		return fmt.Errorf("decode response from %s: %w", reqURL, err)
 	}
 
 	return nil

@@ -65,7 +65,8 @@ func main() {
 			OAuthConfig: oauthConfig,
 			Credentials: credentials,
 			SyncMeta:    syncMeta,
-			Backfill:    googlehealth.NewBackfillService(queries, credentials, syncMeta, oauthConfig),
+			Backfill:    googlehealth.NewBackfillService(queries, credentials, syncMeta, heightResolver, oauthConfig),
+			Push:        googlehealth.NewPushService(credentials, oauthConfig),
 		}
 	}
 

@@ -12,8 +12,10 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/oauth2"
 
+	"github.com/isAdamBailey/massa/backend/internal/bmi"
 	"github.com/isAdamBailey/massa/backend/internal/db"
 	"github.com/isAdamBailey/massa/backend/internal/googlehealth"
+	"github.com/isAdamBailey/massa/backend/internal/heights"
 )
 
 func TestBackfillService_Run(t *testing.T) {
@@ -65,7 +67,8 @@ func TestBackfillService_Run(t *testing.T) {
 		AccessTokenExpiresAt: &expiry,
 	}))
 
-	service := googlehealth.NewBackfillServiceForTest(q, credRepo, syncRepo, oauthConfig, srv.URL)
+	heightResolver := heights.NewResolver(q)
+	service := googlehealth.NewBackfillServiceForTest(q, credRepo, syncRepo, heightResolver, oauthConfig, srv.URL)
 
 	require.NoError(t, service.Run(context.Background(), userID))
 
@@ -79,6 +82,13 @@ func TestBackfillService_Run(t *testing.T) {
 	assert.InDelta(t, 70.0, weightKg, 0.001)
 	require.NotNil(t, byID.GoogleDataPointID)
 	assert.Equal(t, "dp-1", *byID.GoogleDataPointID)
+
+	bmiValue, err := db.FromNumeric(byID.Bmi)
+	require.NoError(t, err)
+	assert.InDelta(t, bmi.Calculate(70.0, 180.0), bmiValue, 0.001)
+	heightUsedCm, err := db.FromNumeric(byID.HeightUsedCm)
+	require.NoError(t, err)
+	assert.InDelta(t, 180.0, heightUsedCm, 0.001)
 
 	heightEntries := q.heightEntries[userID]
 	require.Len(t, heightEntries, 1)
@@ -101,7 +111,8 @@ func TestBackfillService_RunNotConnected(t *testing.T) {
 	syncRepo := googlehealth.NewPostgresSyncMetadataRepository(q)
 	oauthConfig := &oauth2.Config{}
 
-	service := googlehealth.NewBackfillServiceForTest(q, credRepo, syncRepo, oauthConfig, "http://unused.invalid")
+	heightResolver := heights.NewResolver(q)
+	service := googlehealth.NewBackfillServiceForTest(q, credRepo, syncRepo, heightResolver, oauthConfig, "http://unused.invalid")
 
 	err := service.Run(context.Background(), uuid.New())
 	require.ErrorIs(t, err, googlehealth.ErrNotConnected)

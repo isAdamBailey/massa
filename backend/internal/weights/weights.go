@@ -23,14 +23,16 @@ var ErrNotFound = errors.New("weight entry not found")
 // Entry is a single weight measurement, with BMI computed from the height
 // resolved at the time it was recorded.
 type Entry struct {
-	ID           uuid.UUID
-	WeightKg     float64
-	RecordedAt   time.Time
-	BMI          *float64
-	HeightUsedCm *float64
-	Source       string
-	CreatedAt    time.Time
-	UpdatedAt    time.Time
+	ID                uuid.UUID
+	WeightKg          float64
+	RecordedAt        time.Time
+	BMI               *float64
+	HeightUsedCm      *float64
+	Source            string
+	GoogleDataPointID *string
+	GoogleSyncStatus  *string
+	CreatedAt         time.Time
+	UpdatedAt         time.Time
 }
 
 // Querier is the subset of db.Querier used by this package.
@@ -40,6 +42,7 @@ type Querier interface {
 	GetWeightEntryByID(ctx context.Context, arg db.GetWeightEntryByIDParams) (db.WeightEntry, error)
 	GetLatestWeightEntry(ctx context.Context, userID pgtype.UUID) (db.WeightEntry, error)
 	UpdateWeightEntry(ctx context.Context, arg db.UpdateWeightEntryParams) (db.WeightEntry, error)
+	UpdateWeightEntryGoogleSync(ctx context.Context, arg db.UpdateWeightEntryGoogleSyncParams) (db.WeightEntry, error)
 	DeleteWeightEntry(ctx context.Context, arg db.DeleteWeightEntryParams) (int64, error)
 }
 
@@ -138,6 +141,24 @@ func (s *Service) Update(ctx context.Context, userID, id uuid.UUID, weightKg flo
 	return fromRow(row)
 }
 
+// UpdateGoogleSync records the outcome of pushing a manual weight entry to
+// Google Health, returning ErrNotFound if it does not exist for userID.
+func (s *Service) UpdateGoogleSync(ctx context.Context, userID, id uuid.UUID, dataPointID *string, status string) (Entry, error) {
+	row, err := s.q.UpdateWeightEntryGoogleSync(ctx, db.UpdateWeightEntryGoogleSyncParams{
+		ID:                db.ToUUID(id),
+		UserID:            db.ToUUID(userID),
+		GoogleDataPointID: dataPointID,
+		GoogleSyncStatus:  &status,
+	})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return Entry{}, ErrNotFound
+	}
+	if err != nil {
+		return Entry{}, err
+	}
+	return fromRow(row)
+}
+
 // Delete removes a weight entry, returning ErrNotFound if it does not exist
 // for userID.
 func (s *Service) Delete(ctx context.Context, userID, id uuid.UUID) error {
@@ -207,12 +228,14 @@ func fromRow(row db.WeightEntry) (Entry, error) {
 	}
 
 	entry := Entry{
-		ID:         db.FromUUID(row.ID),
-		WeightKg:   weightKg,
-		RecordedAt: row.RecordedAt.Time,
-		Source:     row.Source,
-		CreatedAt:  row.CreatedAt.Time,
-		UpdatedAt:  row.UpdatedAt.Time,
+		ID:                db.FromUUID(row.ID),
+		WeightKg:          weightKg,
+		RecordedAt:        row.RecordedAt.Time,
+		Source:            row.Source,
+		GoogleDataPointID: row.GoogleDataPointID,
+		GoogleSyncStatus:  row.GoogleSyncStatus,
+		CreatedAt:         row.CreatedAt.Time,
+		UpdatedAt:         row.UpdatedAt.Time,
 	}
 
 	if row.Bmi.Valid {

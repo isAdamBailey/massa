@@ -99,6 +99,33 @@ func TestService_Update_NotFound(t *testing.T) {
 	assert.ErrorIs(t, err, weights.ErrNotFound)
 }
 
+func TestService_UpdateGoogleSync(t *testing.T) {
+	q := newFakeQuerier()
+	svc := weights.NewService(q, &fakeHeightResolver{heightCm: 175})
+	userID := uuid.New()
+
+	entry, err := svc.Create(context.Background(), userID, 70, time.Now())
+	require.NoError(t, err)
+
+	dataPointID := entry.ID.String()
+	updated, err := svc.UpdateGoogleSync(context.Background(), userID, entry.ID, &dataPointID, "synced")
+	require.NoError(t, err)
+
+	require.NotNil(t, updated.GoogleDataPointID)
+	assert.Equal(t, dataPointID, *updated.GoogleDataPointID)
+	require.NotNil(t, updated.GoogleSyncStatus)
+	assert.Equal(t, "synced", *updated.GoogleSyncStatus)
+}
+
+func TestService_UpdateGoogleSync_NotFound(t *testing.T) {
+	q := newFakeQuerier()
+	svc := weights.NewService(q, &fakeHeightResolver{heightCm: 175})
+
+	dataPointID := "dp-1"
+	_, err := svc.UpdateGoogleSync(context.Background(), uuid.New(), uuid.New(), &dataPointID, "synced")
+	assert.ErrorIs(t, err, weights.ErrNotFound)
+}
+
 func TestService_Delete(t *testing.T) {
 	q := newFakeQuerier()
 	svc := weights.NewService(q, &fakeHeightResolver{heightCm: 175})

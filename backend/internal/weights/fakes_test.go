@@ -93,6 +93,17 @@ func (f *fakeQuerier) UpdateWeightEntry(_ context.Context, arg db.UpdateWeightEn
 	return row, nil
 }
 
+func (f *fakeQuerier) UpdateWeightEntryGoogleSync(_ context.Context, arg db.UpdateWeightEntryGoogleSyncParams) (db.WeightEntry, error) {
+	row, ok := f.entries[db.FromUUID(arg.ID)]
+	if !ok || db.FromUUID(row.UserID) != db.FromUUID(arg.UserID) {
+		return db.WeightEntry{}, pgx.ErrNoRows
+	}
+	row.GoogleDataPointID = arg.GoogleDataPointID
+	row.GoogleSyncStatus = arg.GoogleSyncStatus
+	f.entries[db.FromUUID(arg.ID)] = row
+	return row, nil
+}
+
 func (f *fakeQuerier) DeleteWeightEntry(_ context.Context, arg db.DeleteWeightEntryParams) (int64, error) {
 	row, ok := f.entries[db.FromUUID(arg.ID)]
 	if !ok || db.FromUUID(row.UserID) != db.FromUUID(arg.UserID) {

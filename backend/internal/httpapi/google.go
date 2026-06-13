@@ -24,6 +24,7 @@ type GoogleHealthDeps struct {
 	Credentials googlehealth.CredentialsRepository
 	SyncMeta    googlehealth.SyncMetadataRepository
 	Backfill    *googlehealth.BackfillService
+	Push        *googlehealth.PushService
 }
 
 // authURLResponse is the JSON body returned by GET /api/google/auth-url.

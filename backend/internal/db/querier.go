@@ -37,6 +37,7 @@ type Querier interface {
 	UpdateSyncWatermarks(ctx context.Context, arg UpdateSyncWatermarksParams) error
 	UpdateUserSettings(ctx context.Context, arg UpdateUserSettingsParams) (User, error)
 	UpdateWeightEntry(ctx context.Context, arg UpdateWeightEntryParams) (WeightEntry, error)
+	UpdateWeightEntryGoogleSync(ctx context.Context, arg UpdateWeightEntryGoogleSyncParams) (WeightEntry, error)
 	UpsertAllowedUser(ctx context.Context, email string) error
 	UpsertGoogleOAuthCredentials(ctx context.Context, arg UpsertGoogleOAuthCredentialsParams) (GoogleOauthCredential, error)
 	UpsertHeightEntryByGoogleID(ctx context.Context, arg UpsertHeightEntryByGoogleIDParams) (HeightEntry, error)

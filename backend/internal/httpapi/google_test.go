@@ -7,10 +7,12 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"sync"
 	"testing"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -19,6 +21,7 @@ import (
 	"github.com/isAdamBailey/massa/backend/internal/auth"
 	"github.com/isAdamBailey/massa/backend/internal/db"
 	"github.com/isAdamBailey/massa/backend/internal/googlehealth"
+	"github.com/isAdamBailey/massa/backend/internal/heights"
 	"github.com/isAdamBailey/massa/backend/internal/httpapi"
 )
 
@@ -113,14 +116,51 @@ func (fakeGoogleQuerier) UpsertHeightEntryByRecordedAt(_ context.Context, arg db
 	return db.HeightEntry{UserID: arg.UserID, HeightCm: arg.HeightCm, RecordedAt: arg.RecordedAt}, nil
 }
 
+func (fakeGoogleQuerier) GetLatestHeightEntry(context.Context, pgtype.UUID) (db.HeightEntry, error) {
+	return db.HeightEntry{}, pgx.ErrNoRows
+}
+
+func (fakeGoogleQuerier) GetUserByID(context.Context, pgtype.UUID) (db.User, error) {
+	return db.User{}, nil
+}
+
 var errNotImplemented = errors.New("not implemented")
+
+// googlePushLog records calls made by PushService to the fake Google Health
+// API, so tests can assert that creating/updating/deleting a manual weight
+// entry pushed (or removed) the corresponding data point.
+type googlePushLog struct {
+	mu      sync.Mutex
+	upserts []googlehealth.DataPoint
+	deleted []string
+}
+
+func (l *googlePushLog) recordUpsert(dp googlehealth.DataPoint) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	l.upserts = append(l.upserts, dp)
+}
+
+func (l *googlePushLog) recordDelete(id string) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	l.deleted = append(l.deleted, id)
+}
+
+func (l *googlePushLog) snapshot() (upserts []googlehealth.DataPoint, deleted []string) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return append([]googlehealth.DataPoint(nil), l.upserts...), append([]string(nil), l.deleted...)
+}
 
 // newGoogleAPIServer starts a test server that stands in for both Google's
 // OAuth token endpoint and the Google Health API. Requests to
 // "https://health.googleapis.com/..." are rewritten (via rewriteTransport)
-// to this server's "/v4/..." paths, while the BackfillService is pointed
-// directly at the server's root for its dataPoints requests.
-func newGoogleAPIServer(t *testing.T) *httptest.Server {
+// to this server's "/v4/..." paths, while the BackfillService and
+// PushService are pointed directly at the server's root for their
+// dataPoints requests. PATCH/DELETE requests to weight data points are
+// recorded on pushLog.
+func newGoogleAPIServer(t *testing.T, pushLog *googlePushLog) *httptest.Server {
 	t.Helper()
 
 	mux := http.NewServeMux()
@@ -139,6 +179,17 @@ func newGoogleAPIServer(t *testing.T) *httptest.Server {
 	mux.HandleFunc("/users/me/dataTypes/height/dataPoints", func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write([]byte(`{"dataPoints":[]}`))
+	})
+	mux.HandleFunc("PATCH /users/me/dataTypes/weight/dataPoints/{id}", func(w http.ResponseWriter, r *http.Request) {
+		var dp googlehealth.DataPoint
+		_ = json.NewDecoder(r.Body).Decode(&dp)
+		pushLog.recordUpsert(dp)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"name":"users/` + testHealthUserID + `/dataTypes/weight/dataPoints/` + r.PathValue("id") + `"}`))
+	})
+	mux.HandleFunc("DELETE /users/me/dataTypes/weight/dataPoints/{id}", func(w http.ResponseWriter, r *http.Request) {
+		pushLog.recordDelete(r.PathValue("id"))
+		w.WriteHeader(http.StatusOK)
 	})
 
 	srv := httptest.NewServer(mux)
@@ -170,6 +221,7 @@ type googleTestEnv struct {
 	credentials *fakeCredentialsRepository
 	syncMeta    *fakeSyncMetadataRepository
 	apiServer   *httptest.Server
+	pushLog     *googlePushLog
 }
 
 func newGoogleTestEnv(t *testing.T) *googleTestEnv {
@@ -180,7 +232,8 @@ func newGoogleTestEnv(t *testing.T) *googleTestEnv {
 	m := &fakeMailer{}
 	svc := auth.NewService(q, u, m, []byte("test-secret"), false, "http://localhost:3000")
 
-	apiServer := newGoogleAPIServer(t)
+	pushLog := &googlePushLog{}
+	apiServer := newGoogleAPIServer(t, pushLog)
 
 	oauthConfig := &oauth2.Config{
 		ClientID:     "test-client",
@@ -192,19 +245,22 @@ func newGoogleTestEnv(t *testing.T) *googleTestEnv {
 
 	credentials := newFakeCredentialsRepository()
 	syncMeta := newFakeSyncMetadataRepository()
-	backfill := googlehealth.NewBackfillServiceForTest(fakeGoogleQuerier{}, credentials, syncMeta, oauthConfig, apiServer.URL)
+	heightResolver := heights.NewResolver(fakeGoogleQuerier{})
+	backfill := googlehealth.NewBackfillServiceForTest(fakeGoogleQuerier{}, credentials, syncMeta, heightResolver, oauthConfig, apiServer.URL)
+	push := googlehealth.NewPushServiceForTest(credentials, oauthConfig, apiServer.URL)
 
 	google := &httpapi.GoogleHealthDeps{
 		OAuthConfig: oauthConfig,
 		Credentials: credentials,
 		SyncMeta:    syncMeta,
 		Backfill:    backfill,
+		Push:        push,
 	}
 
 	r := chi.NewRouter()
 	httpapi.NewHandler(svc, u, newFakeWeightsService(), false, "http://localhost:3000", google).Register(r)
 
-	return &googleTestEnv{router: r, mailer: m, users: u, credentials: credentials, syncMeta: syncMeta, apiServer: apiServer}
+	return &googleTestEnv{router: r, mailer: m, users: u, credentials: credentials, syncMeta: syncMeta, apiServer: apiServer, pushLog: pushLog}
 }
 
 // rewriteClient returns an *http.Client whose requests are redirected to the

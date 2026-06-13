@@ -11,10 +11,12 @@ import (
 	"github.com/isAdamBailey/massa/backend/internal/db"
 )
 
-// fakeQuerier is an in-memory implementation of googlehealth.Querier.
+// fakeQuerier is an in-memory implementation of googlehealth.Querier and
+// heights.Querier.
 type fakeQuerier struct {
 	credentials map[uuid.UUID]db.GoogleOauthCredential
 	syncMeta    map[uuid.UUID]db.SyncMetadatum
+	users       map[uuid.UUID]db.User
 
 	// weightEntries and heightEntries are keyed by user ID, then by either
 	// the Google data point ID (if present) or the recorded_at timestamp
@@ -27,9 +29,33 @@ func newFakeQuerier() *fakeQuerier {
 	return &fakeQuerier{
 		credentials:   make(map[uuid.UUID]db.GoogleOauthCredential),
 		syncMeta:      make(map[uuid.UUID]db.SyncMetadatum),
+		users:         make(map[uuid.UUID]db.User),
 		weightEntries: make(map[uuid.UUID]map[string]db.WeightEntry),
 		heightEntries: make(map[uuid.UUID]map[string]db.HeightEntry),
 	}
+}
+
+func (f *fakeQuerier) GetLatestHeightEntry(_ context.Context, userID pgtype.UUID) (db.HeightEntry, error) {
+	var latest db.HeightEntry
+	found := false
+	for _, entry := range f.heightEntries[db.FromUUID(userID)] {
+		if !found || entry.RecordedAt.Time.After(latest.RecordedAt.Time) {
+			latest = entry
+			found = true
+		}
+	}
+	if !found {
+		return db.HeightEntry{}, pgx.ErrNoRows
+	}
+	return latest, nil
+}
+
+func (f *fakeQuerier) GetUserByID(_ context.Context, id pgtype.UUID) (db.User, error) {
+	row, ok := f.users[db.FromUUID(id)]
+	if !ok {
+		return db.User{}, nil
+	}
+	return row, nil
 }
 
 func (f *fakeQuerier) GetGoogleOAuthCredentialsByUserID(_ context.Context, userID pgtype.UUID) (db.GoogleOauthCredential, error) {
@@ -83,14 +109,14 @@ func (f *fakeQuerier) UpdateSyncWatermarks(_ context.Context, arg db.UpdateSyncW
 }
 
 func (f *fakeQuerier) UpsertWeightEntryByGoogleID(_ context.Context, arg db.UpsertWeightEntryByGoogleIDParams) (db.WeightEntry, error) {
-	return f.upsertWeightEntry(arg.UserID, *arg.GoogleDataPointID, arg.WeightKg, arg.RecordedAt, arg.GoogleDataPointID)
+	return f.upsertWeightEntry(arg.UserID, *arg.GoogleDataPointID, arg.WeightKg, arg.RecordedAt, arg.Bmi, arg.HeightUsedCm, arg.GoogleDataPointID)
 }
 
 func (f *fakeQuerier) UpsertWeightEntryByRecordedAt(_ context.Context, arg db.UpsertWeightEntryByRecordedAtParams) (db.WeightEntry, error) {
-	return f.upsertWeightEntry(arg.UserID, arg.RecordedAt.Time.String(), arg.WeightKg, arg.RecordedAt, nil)
+	return f.upsertWeightEntry(arg.UserID, arg.RecordedAt.Time.String(), arg.WeightKg, arg.RecordedAt, arg.Bmi, arg.HeightUsedCm, nil)
 }
 
-func (f *fakeQuerier) upsertWeightEntry(userID pgtype.UUID, key string, weightKg pgtype.Numeric, recordedAt pgtype.Timestamptz, dataPointID *string) (db.WeightEntry, error) {
+func (f *fakeQuerier) upsertWeightEntry(userID pgtype.UUID, key string, weightKg pgtype.Numeric, recordedAt pgtype.Timestamptz, bmiValue, heightUsedCm pgtype.Numeric, dataPointID *string) (db.WeightEntry, error) {
 	entries, ok := f.weightEntries[db.FromUUID(userID)]
 	if !ok {
 		entries = make(map[string]db.WeightEntry)
@@ -101,6 +127,8 @@ func (f *fakeQuerier) upsertWeightEntry(userID pgtype.UUID, key string, weightKg
 		UserID:            userID,
 		WeightKg:          weightKg,
 		RecordedAt:        recordedAt,
+		Bmi:               bmiValue,
+		HeightUsedCm:      heightUsedCm,
 		Source:            "google",
 		GoogleDataPointID: dataPointID,
 	}

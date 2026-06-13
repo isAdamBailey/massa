@@ -209,11 +209,49 @@ func (q *Queries) UpdateWeightEntry(ctx context.Context, arg UpdateWeightEntryPa
 	return i, err
 }
 
+const updateWeightEntryGoogleSync = `-- name: UpdateWeightEntryGoogleSync :one
+UPDATE weight_entries
+SET google_data_point_id = $3, google_sync_status = $4
+WHERE id = $1 AND user_id = $2
+RETURNING id, user_id, weight_kg, recorded_at, bmi, height_used_cm, source, google_data_point_id, google_sync_status, created_at, updated_at
+`
+
+type UpdateWeightEntryGoogleSyncParams struct {
+	ID                pgtype.UUID `json:"id"`
+	UserID            pgtype.UUID `json:"user_id"`
+	GoogleDataPointID *string     `json:"google_data_point_id"`
+	GoogleSyncStatus  *string     `json:"google_sync_status"`
+}
+
+func (q *Queries) UpdateWeightEntryGoogleSync(ctx context.Context, arg UpdateWeightEntryGoogleSyncParams) (WeightEntry, error) {
+	row := q.db.QueryRow(ctx, updateWeightEntryGoogleSync,
+		arg.ID,
+		arg.UserID,
+		arg.GoogleDataPointID,
+		arg.GoogleSyncStatus,
+	)
+	var i WeightEntry
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.WeightKg,
+		&i.RecordedAt,
+		&i.Bmi,
+		&i.HeightUsedCm,
+		&i.Source,
+		&i.GoogleDataPointID,
+		&i.GoogleSyncStatus,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const upsertWeightEntryByGoogleID = `-- name: UpsertWeightEntryByGoogleID :one
-INSERT INTO weight_entries (user_id, weight_kg, recorded_at, source, google_data_point_id)
-VALUES ($1, $2, $3, 'google', $4)
+INSERT INTO weight_entries (user_id, weight_kg, recorded_at, bmi, height_used_cm, source, google_data_point_id)
+VALUES ($1, $2, $3, $4, $5, 'google', $6)
 ON CONFLICT (user_id, google_data_point_id) WHERE google_data_point_id IS NOT NULL
-DO UPDATE SET weight_kg = excluded.weight_kg, recorded_at = excluded.recorded_at, updated_at = now()
+DO UPDATE SET weight_kg = excluded.weight_kg, recorded_at = excluded.recorded_at, bmi = excluded.bmi, height_used_cm = excluded.height_used_cm, updated_at = now()
 RETURNING id, user_id, weight_kg, recorded_at, bmi, height_used_cm, source, google_data_point_id, google_sync_status, created_at, updated_at
 `
 
@@ -221,6 +259,8 @@ type UpsertWeightEntryByGoogleIDParams struct {
 	UserID            pgtype.UUID        `json:"user_id"`
 	WeightKg          pgtype.Numeric     `json:"weight_kg"`
 	RecordedAt        pgtype.Timestamptz `json:"recorded_at"`
+	Bmi               pgtype.Numeric     `json:"bmi"`
+	HeightUsedCm      pgtype.Numeric     `json:"height_used_cm"`
 	GoogleDataPointID *string            `json:"google_data_point_id"`
 }
 
@@ -229,6 +269,8 @@ func (q *Queries) UpsertWeightEntryByGoogleID(ctx context.Context, arg UpsertWei
 		arg.UserID,
 		arg.WeightKg,
 		arg.RecordedAt,
+		arg.Bmi,
+		arg.HeightUsedCm,
 		arg.GoogleDataPointID,
 	)
 	var i WeightEntry
@@ -249,21 +291,29 @@ func (q *Queries) UpsertWeightEntryByGoogleID(ctx context.Context, arg UpsertWei
 }
 
 const upsertWeightEntryByRecordedAt = `-- name: UpsertWeightEntryByRecordedAt :one
-INSERT INTO weight_entries (user_id, weight_kg, recorded_at, source, google_data_point_id)
-VALUES ($1, $2, $3, 'google', NULL)
+INSERT INTO weight_entries (user_id, weight_kg, recorded_at, bmi, height_used_cm, source, google_data_point_id)
+VALUES ($1, $2, $3, $4, $5, 'google', NULL)
 ON CONFLICT (user_id, recorded_at) WHERE source = 'google' AND google_data_point_id IS NULL
-DO UPDATE SET weight_kg = excluded.weight_kg, updated_at = now()
+DO UPDATE SET weight_kg = excluded.weight_kg, bmi = excluded.bmi, height_used_cm = excluded.height_used_cm, updated_at = now()
 RETURNING id, user_id, weight_kg, recorded_at, bmi, height_used_cm, source, google_data_point_id, google_sync_status, created_at, updated_at
 `
 
 type UpsertWeightEntryByRecordedAtParams struct {
-	UserID     pgtype.UUID        `json:"user_id"`
-	WeightKg   pgtype.Numeric     `json:"weight_kg"`
-	RecordedAt pgtype.Timestamptz `json:"recorded_at"`
+	UserID       pgtype.UUID        `json:"user_id"`
+	WeightKg     pgtype.Numeric     `json:"weight_kg"`
+	RecordedAt   pgtype.Timestamptz `json:"recorded_at"`
+	Bmi          pgtype.Numeric     `json:"bmi"`
+	HeightUsedCm pgtype.Numeric     `json:"height_used_cm"`
 }
 
 func (q *Queries) UpsertWeightEntryByRecordedAt(ctx context.Context, arg UpsertWeightEntryByRecordedAtParams) (WeightEntry, error) {
-	row := q.db.QueryRow(ctx, upsertWeightEntryByRecordedAt, arg.UserID, arg.WeightKg, arg.RecordedAt)
+	row := q.db.QueryRow(ctx, upsertWeightEntryByRecordedAt,
+		arg.UserID,
+		arg.WeightKg,
+		arg.RecordedAt,
+		arg.Bmi,
+		arg.HeightUsedCm,
+	)
 	var i WeightEntry
 	err := row.Scan(
 		&i.ID,

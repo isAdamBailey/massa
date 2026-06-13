@@ -2,9 +2,11 @@ package googlehealth_test
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -71,6 +73,44 @@ func TestClient_ListHeightDataPoints(t *testing.T) {
 	require.Len(t, resp.DataPoints, 1)
 	require.NotNil(t, resp.DataPoints[0].Height)
 	assert.Equal(t, "1800", resp.DataPoints[0].Height.HeightMillimeters)
+}
+
+func TestClient_UpsertWeightDataPoint(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, http.MethodPatch, r.Method)
+		assert.Equal(t, "/users/abc123/dataTypes/weight/dataPoints/dp-1", r.URL.Path)
+
+		var body googlehealth.DataPoint
+		require.NoError(t, json.NewDecoder(r.Body).Decode(&body))
+		require.NotNil(t, body.Weight)
+		assert.InDelta(t, 70123.4, body.Weight.WeightGrams, 0.001)
+		assert.Equal(t, "2024-01-02T08:00:00Z", body.Weight.SampleTime.PhysicalTime)
+
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"name": "users/abc123/dataTypes/weight/dataPoints/dp-1"}`))
+	}))
+	defer srv.Close()
+
+	client := googlehealth.NewClientForTest(srv.Client(), srv.URL)
+
+	recordedAt := time.Date(2024, 1, 2, 8, 0, 0, 0, time.UTC)
+	resp, err := client.UpsertWeightDataPoint(context.Background(), "abc123", "dp-1", 70123.4, recordedAt)
+	require.NoError(t, err)
+	assert.Equal(t, "users/abc123/dataTypes/weight/dataPoints/dp-1", resp.Name)
+}
+
+func TestClient_DeleteWeightDataPoint(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, http.MethodDelete, r.Method)
+		assert.Equal(t, "/users/abc123/dataTypes/weight/dataPoints/dp-1", r.URL.Path)
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer srv.Close()
+
+	client := googlehealth.NewClientForTest(srv.Client(), srv.URL)
+
+	err := client.DeleteWeightDataPoint(context.Background(), "abc123", "dp-1")
+	require.NoError(t, err)
 }
 
 func TestClient_ErrorStatus(t *testing.T) {

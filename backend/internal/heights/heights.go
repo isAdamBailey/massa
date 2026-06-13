@@ -32,24 +32,24 @@ func NewResolver(q Querier) *Resolver {
 	return &Resolver{q: q}
 }
 
-// Resolve returns the height in centimeters to use for userID: the most
-// recently recorded height_entries row if one exists, otherwise the user's
-// manual height override. It returns ErrNoHeight if neither is set.
+// Resolve returns the height in centimeters to use for userID: the user's
+// manual height override if set, otherwise the most recently recorded
+// height_entries row. It returns ErrNoHeight if neither is set.
 func (r *Resolver) Resolve(ctx context.Context, userID uuid.UUID) (float64, error) {
-	entry, err := r.q.GetLatestHeightEntry(ctx, db.ToUUID(userID))
-	if err == nil {
-		return db.FromNumeric(entry.HeightCm)
-	}
-	if !errors.Is(err, pgx.ErrNoRows) {
-		return 0, err
-	}
-
 	user, err := r.q.GetUserByID(ctx, db.ToUUID(userID))
 	if err != nil {
 		return 0, err
 	}
-	if !user.ManualHeightCm.Valid {
+	if user.ManualHeightCm.Valid {
+		return db.FromNumeric(user.ManualHeightCm)
+	}
+
+	entry, err := r.q.GetLatestHeightEntry(ctx, db.ToUUID(userID))
+	if err == nil {
+		return db.FromNumeric(entry.HeightCm)
+	}
+	if errors.Is(err, pgx.ErrNoRows) {
 		return 0, ErrNoHeight
 	}
-	return db.FromNumeric(user.ManualHeightCm)
+	return 0, err
 }
