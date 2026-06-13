@@ -1,0 +1,33 @@
+services:
+  postgres:
+    ports: !reset null
+
+  mailpit:
+    profiles:
+      - dev
+
+  backend:
+    ports: !reset null
+    restart: unless-stopped
+
+  frontend:
+    ports: !reset null
+    restart: unless-stopped
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - backend
+      - frontend
+
+volumes:
+  caddy_data:
+  caddy_config:

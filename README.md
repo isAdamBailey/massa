@@ -21,6 +21,11 @@ backend/    Go API server (cmd/server, cmd/migrate, internal/...)
 frontend/   Nuxt 4 PWA
 ```
 
+## Deployment
+
+See [docs/DEPLOY_DIGITALOCEAN.md](docs/DEPLOY_DIGITALOCEAN.md) for deploying
+from GitHub to an Ubuntu droplet with Docker Compose and Caddy.
+
 ## Local development
 
 1. Copy `.env.example` to `.env` and fill in the values (Google OAuth

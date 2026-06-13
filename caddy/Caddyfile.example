@@ -1,0 +1,13 @@
+massa.example.com {
+	handle /api/* {
+		reverse_proxy backend:8080
+	}
+
+	handle /healthz {
+		reverse_proxy backend:8080
+	}
+
+	handle {
+		reverse_proxy frontend:3000
+	}
+}

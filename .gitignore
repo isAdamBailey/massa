@@ -6,5 +6,8 @@
 # Claude Code local settings
 .claude/settings.local.json
 
+# Server-specific Caddy config (copy from caddy/Caddyfile.example)
+caddy/Caddyfile
+
 # OS
 .DS_Store
