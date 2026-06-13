@@ -6,8 +6,10 @@ const google = useGoogleHealthStore()
 const { category, kgToLb } = useBmi()
 
 type RangePreset = '7d' | '30d' | '90d' | '1y' | 'all'
+type ChartViewMode = 'daily' | 'weekly'
 
 const rangePreset = ref<RangePreset>('90d')
+const chartViewMode = ref<ChartViewMode>('daily')
 
 const rangePresets: { value: RangePreset, label: string }[] = [
   { value: '7d', label: '7 days' },
@@ -36,6 +38,8 @@ async function loadEntries() {
   await weights.fetchEntries({ from: from.toISOString() })
 }
 
+const { currentWeekAverage } = useWeeklyAverages()
+
 const latestEntry = computed(() => weights.entries.at(-1) ?? null)
 
 const weightUnitLabel = computed(() => settings.settings.unitsPreference === 'imperial' ? 'lb' : 'kg')
@@ -47,6 +51,17 @@ const latestWeightDisplay = computed(() => {
   const weight = settings.settings.unitsPreference === 'imperial'
     ? kgToLb(latestEntry.value.weightKg)
     : latestEntry.value.weightKg
+  return weight.toFixed(1)
+})
+
+const weeklyAverageDisplay = computed(() => {
+  const average = currentWeekAverage(weights.entries)
+  if (!average) {
+    return null
+  }
+  const weight = settings.settings.unitsPreference === 'imperial'
+    ? kgToLb(average.averageKg)
+    : average.averageKg
   return weight.toFixed(1)
 })
 
@@ -116,6 +131,14 @@ function formatDate(value?: string) {
             {{ latestWeightDisplay }} {{ weightUnitLabel }}
           </dd>
         </div>
+        <div v-if="weeklyAverageDisplay">
+          <dt class="text-xs text-gray-500">
+            This week's avg
+          </dt>
+          <dd class="text-lg font-semibold text-gray-900">
+            {{ weeklyAverageDisplay }} {{ weightUnitLabel }}
+          </dd>
+        </div>
         <div v-if="latestEntry.bmi">
           <dt class="text-xs text-gray-500">
             BMI
@@ -163,6 +186,7 @@ function formatDate(value?: string) {
         </p>
         <WeightChart
           v-else
+          v-model:view-mode="chartViewMode"
           :entries="weights.entries"
           :units-preference="settings.settings.unitsPreference"
         />
