@@ -16,8 +16,11 @@ type Querier interface {
 	CreateSession(ctx context.Context, arg CreateSessionParams) (Session, error)
 	CreateUser(ctx context.Context, email string) (User, error)
 	DeleteAllowedUserByEmail(ctx context.Context, email string) error
+	DeleteGoogleOAuthCredentials(ctx context.Context, userID pgtype.UUID) error
 	DeleteSession(ctx context.Context, id pgtype.UUID) error
+	GetGoogleOAuthCredentialsByUserID(ctx context.Context, userID pgtype.UUID) (GoogleOauthCredential, error)
 	GetSession(ctx context.Context, id pgtype.UUID) (Session, error)
+	GetSyncMetadataByUserID(ctx context.Context, userID pgtype.UUID) (SyncMetadatum, error)
 	GetUserByEmail(ctx context.Context, email string) (User, error)
 	GetUserByID(ctx context.Context, id pgtype.UUID) (User, error)
 	GetValidMagicLinkToken(ctx context.Context, tokenHash string) (MagicLinkToken, error)
@@ -25,7 +28,14 @@ type Querier interface {
 	ListAllowedEmails(ctx context.Context) ([]string, error)
 	MarkMagicLinkTokenUsed(ctx context.Context, id pgtype.UUID) error
 	UpdateLastLoginAt(ctx context.Context, id pgtype.UUID) error
+	UpdateSyncWatermarks(ctx context.Context, arg UpdateSyncWatermarksParams) error
 	UpsertAllowedUser(ctx context.Context, email string) error
+	UpsertGoogleOAuthCredentials(ctx context.Context, arg UpsertGoogleOAuthCredentialsParams) (GoogleOauthCredential, error)
+	UpsertHeightEntryByGoogleID(ctx context.Context, arg UpsertHeightEntryByGoogleIDParams) (HeightEntry, error)
+	UpsertHeightEntryByRecordedAt(ctx context.Context, arg UpsertHeightEntryByRecordedAtParams) (HeightEntry, error)
+	UpsertSyncMetadata(ctx context.Context, userID pgtype.UUID) (SyncMetadatum, error)
+	UpsertWeightEntryByGoogleID(ctx context.Context, arg UpsertWeightEntryByGoogleIDParams) (WeightEntry, error)
+	UpsertWeightEntryByRecordedAt(ctx context.Context, arg UpsertWeightEntryByRecordedAtParams) (WeightEntry, error)
 }
 
 var _ Querier = (*Queries)(nil)

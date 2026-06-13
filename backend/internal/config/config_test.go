@@ -1,6 +1,7 @@
 package config_test
 
 import (
+	"encoding/base64"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -8,6 +9,8 @@ import (
 
 	"github.com/isAdamBailey/massa/backend/internal/config"
 )
+
+var validEncryptionKey = base64.StdEncoding.EncodeToString(make([]byte, 32))
 
 // setRequiredEnv sets the environment variables needed for a valid SMTP
 // configuration, returning a fresh set the test can mutate.
@@ -82,4 +85,49 @@ func TestLoad_InvalidEmailProvider(t *testing.T) {
 	_, err := config.Load()
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "EMAIL_PROVIDER")
+}
+
+func TestLoad_GoogleOAuthNotConfigured(t *testing.T) {
+	setRequiredEnv(t)
+
+	cfg, err := config.Load()
+	require.NoError(t, err)
+	assert.False(t, cfg.GoogleOAuth.Enabled)
+}
+
+func TestLoad_GoogleOAuthValid(t *testing.T) {
+	setRequiredEnv(t)
+	t.Setenv("GOOGLE_OAUTH_CLIENT_ID", "client-id")
+	t.Setenv("GOOGLE_OAUTH_CLIENT_SECRET", "client-secret")
+	t.Setenv("GOOGLE_OAUTH_REDIRECT_URL", "http://localhost:8080/api/google/callback")
+	t.Setenv("OAUTH_TOKEN_ENCRYPTION_KEY", validEncryptionKey)
+
+	cfg, err := config.Load()
+	require.NoError(t, err)
+	assert.True(t, cfg.GoogleOAuth.Enabled)
+	assert.Equal(t, "client-id", cfg.GoogleOAuth.ClientID)
+	assert.Equal(t, "client-secret", cfg.GoogleOAuth.ClientSecret)
+	assert.Equal(t, "http://localhost:8080/api/google/callback", cfg.GoogleOAuth.RedirectURL)
+	assert.Len(t, cfg.GoogleOAuth.TokenEncryptionKey, 32)
+}
+
+func TestLoad_GoogleOAuthPartialConfig(t *testing.T) {
+	setRequiredEnv(t)
+	t.Setenv("GOOGLE_OAUTH_CLIENT_ID", "client-id")
+
+	_, err := config.Load()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "GOOGLE_OAUTH_CLIENT_SECRET")
+	assert.Contains(t, err.Error(), "OAUTH_TOKEN_ENCRYPTION_KEY")
+}
+
+func TestLoad_GoogleOAuthInvalidEncryptionKey(t *testing.T) {
+	setRequiredEnv(t)
+	t.Setenv("GOOGLE_OAUTH_CLIENT_ID", "client-id")
+	t.Setenv("GOOGLE_OAUTH_CLIENT_SECRET", "client-secret")
+	t.Setenv("OAUTH_TOKEN_ENCRYPTION_KEY", "not-base64-and-wrong-length")
+
+	_, err := config.Load()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "OAUTH_TOKEN_ENCRYPTION_KEY")
 }

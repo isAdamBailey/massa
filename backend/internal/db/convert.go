@@ -1,6 +1,7 @@
 package db
 
 import (
+	"strconv"
 	"time"
 
 	"github.com/google/uuid"
@@ -31,4 +32,32 @@ func FromTimestamptz(t pgtype.Timestamptz) *time.Time {
 		return nil
 	}
 	return &t.Time
+}
+
+// ToTimestamptzPtr converts a *time.Time to the pgtype representation used
+// by sqlc-generated code, returning an invalid (NULL) value for nil.
+func ToTimestamptzPtr(t *time.Time) pgtype.Timestamptz {
+	if t == nil {
+		return pgtype.Timestamptz{}
+	}
+	return pgtype.Timestamptz{Time: *t, Valid: true}
+}
+
+// ToNumeric converts a float64 to the pgtype representation used by
+// sqlc-generated code.
+func ToNumeric(f float64) (pgtype.Numeric, error) {
+	var n pgtype.Numeric
+	if err := n.Scan(strconv.FormatFloat(f, 'f', -1, 64)); err != nil {
+		return pgtype.Numeric{}, err
+	}
+	return n, nil
+}
+
+// FromNumeric converts a pgtype.Numeric to a float64.
+func FromNumeric(n pgtype.Numeric) (float64, error) {
+	f, err := n.Float64Value()
+	if err != nil {
+		return 0, err
+	}
+	return f.Float64, nil
 }

@@ -14,6 +14,29 @@ type AllowedUser struct {
 	CreatedAt pgtype.Timestamptz `json:"created_at"`
 }
 
+type GoogleOauthCredential struct {
+	ID                    pgtype.UUID        `json:"id"`
+	UserID                pgtype.UUID        `json:"user_id"`
+	GoogleHealthUserID    string             `json:"google_health_user_id"`
+	RefreshTokenEncrypted []byte             `json:"refresh_token_encrypted"`
+	RefreshTokenNonce     []byte             `json:"refresh_token_nonce"`
+	AccessTokenEncrypted  []byte             `json:"access_token_encrypted"`
+	AccessTokenNonce      []byte             `json:"access_token_nonce"`
+	AccessTokenExpiresAt  pgtype.Timestamptz `json:"access_token_expires_at"`
+	ConnectedAt           pgtype.Timestamptz `json:"connected_at"`
+	UpdatedAt             pgtype.Timestamptz `json:"updated_at"`
+}
+
+type HeightEntry struct {
+	ID                pgtype.UUID        `json:"id"`
+	UserID            pgtype.UUID        `json:"user_id"`
+	HeightCm          pgtype.Numeric     `json:"height_cm"`
+	RecordedAt        pgtype.Timestamptz `json:"recorded_at"`
+	Source            string             `json:"source"`
+	GoogleDataPointID *string            `json:"google_data_point_id"`
+	CreatedAt         pgtype.Timestamptz `json:"created_at"`
+}
+
 type MagicLinkToken struct {
 	ID        pgtype.UUID        `json:"id"`
 	UserEmail string             `json:"user_email"`
@@ -30,6 +53,16 @@ type Session struct {
 	CreatedAt pgtype.Timestamptz `json:"created_at"`
 }
 
+type SyncMetadatum struct {
+	ID                    pgtype.UUID        `json:"id"`
+	UserID                pgtype.UUID        `json:"user_id"`
+	LastFullBackfillAt    pgtype.Timestamptz `json:"last_full_backfill_at"`
+	LastIncrementalSyncAt pgtype.Timestamptz `json:"last_incremental_sync_at"`
+	WeightSyncWatermark   pgtype.Timestamptz `json:"weight_sync_watermark"`
+	HeightSyncWatermark   pgtype.Timestamptz `json:"height_sync_watermark"`
+	UpdatedAt             pgtype.Timestamptz `json:"updated_at"`
+}
+
 type User struct {
 	ID              pgtype.UUID        `json:"id"`
 	Email           string             `json:"email"`
@@ -37,4 +70,18 @@ type User struct {
 	UnitsPreference string             `json:"units_preference"`
 	CreatedAt       pgtype.Timestamptz `json:"created_at"`
 	LastLoginAt     pgtype.Timestamptz `json:"last_login_at"`
+}
+
+type WeightEntry struct {
+	ID                pgtype.UUID        `json:"id"`
+	UserID            pgtype.UUID        `json:"user_id"`
+	WeightKg          pgtype.Numeric     `json:"weight_kg"`
+	RecordedAt        pgtype.Timestamptz `json:"recorded_at"`
+	Bmi               pgtype.Numeric     `json:"bmi"`
+	HeightUsedCm      pgtype.Numeric     `json:"height_used_cm"`
+	Source            string             `json:"source"`
+	GoogleDataPointID *string            `json:"google_data_point_id"`
+	GoogleSyncStatus  *string            `json:"google_sync_status"`
+	CreatedAt         pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt         pgtype.Timestamptz `json:"updated_at"`
 }

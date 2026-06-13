@@ -17,13 +17,23 @@ const magicLinkRateLimit = 5
 
 // Handler holds the dependencies needed to serve the API.
 type Handler struct {
-	auth  *auth.Service
-	users users.Repository
+	auth         *auth.Service
+	users        users.Repository
+	cookieSecure bool
+	appBaseURL   string
+	google       *GoogleHealthDeps
 }
 
-// NewHandler constructs a Handler.
-func NewHandler(authSvc *auth.Service, userRepo users.Repository) *Handler {
-	return &Handler{auth: authSvc, users: userRepo}
+// NewHandler constructs a Handler. google may be nil, in which case the
+// /api/google/* routes are not registered.
+func NewHandler(authSvc *auth.Service, userRepo users.Repository, cookieSecure bool, appBaseURL string, google *GoogleHealthDeps) *Handler {
+	return &Handler{
+		auth:         authSvc,
+		users:        userRepo,
+		cookieSecure: cookieSecure,
+		appBaseURL:   appBaseURL,
+		google:       google,
+	}
 }
 
 // Register attaches all API routes to the given router.
@@ -40,6 +50,14 @@ func (h *Handler) Register(r chi.Router) {
 			r.Use(h.requireAuth)
 			r.Get("/me", h.me)
 			r.With(h.requireCSRF).Post("/auth/logout", h.logout)
+
+			if h.google != nil {
+				r.Get("/google/auth-url", h.googleAuthURL)
+				r.Get("/google/callback", h.googleCallback)
+				r.Get("/google/status", h.googleStatus)
+				r.With(h.requireCSRF).Post("/google/disconnect", h.googleDisconnect)
+				r.With(h.requireCSRF).Post("/google/sync", h.googleSync)
+			}
 		})
 	})
 }

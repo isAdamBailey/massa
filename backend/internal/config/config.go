@@ -3,6 +3,7 @@
 package config
 
 import (
+	"encoding/base64"
 	"fmt"
 	"os"
 	"strings"
@@ -19,6 +20,18 @@ type Config struct {
 	CookieSecure        bool
 	AllowedEmails       []string
 	Mailer              mailer.Config
+	GoogleOAuth         GoogleOAuthConfig
+}
+
+// GoogleOAuthConfig holds the settings needed to connect to the Google
+// Health API. It is considered Enabled only once a client ID, secret, and
+// token encryption key have all been provided.
+type GoogleOAuthConfig struct {
+	Enabled            bool
+	ClientID           string
+	ClientSecret       string
+	RedirectURL        string
+	TokenEncryptionKey []byte
 }
 
 // Load reads configuration from environment variables, applying defaults
@@ -62,6 +75,55 @@ func Load() (Config, error) {
 	if len(missing) > 0 {
 		return Config{}, fmt.Errorf("missing required environment variables: %s", strings.Join(missing, ", "))
 	}
+
+	googleOAuth, err := loadGoogleOAuth()
+	if err != nil {
+		return Config{}, err
+	}
+	cfg.GoogleOAuth = googleOAuth
+
+	return cfg, nil
+}
+
+// loadGoogleOAuth reads the Google Health OAuth configuration. It is
+// optional: if GOOGLE_OAUTH_CLIENT_ID and GOOGLE_OAUTH_CLIENT_SECRET are both
+// unset, GoogleOAuthConfig.Enabled is false and Google Health features are
+// disabled. If either is set, both must be set along with a valid
+// OAUTH_TOKEN_ENCRYPTION_KEY.
+func loadGoogleOAuth() (GoogleOAuthConfig, error) {
+	cfg := GoogleOAuthConfig{
+		ClientID:     os.Getenv("GOOGLE_OAUTH_CLIENT_ID"),
+		ClientSecret: os.Getenv("GOOGLE_OAUTH_CLIENT_SECRET"),
+		RedirectURL:  envOrDefault("GOOGLE_OAUTH_REDIRECT_URL", "http://localhost:8080/api/google/callback"),
+	}
+
+	if cfg.ClientID == "" && cfg.ClientSecret == "" {
+		return cfg, nil
+	}
+
+	var missing []string
+	if cfg.ClientID == "" {
+		missing = append(missing, "GOOGLE_OAUTH_CLIENT_ID")
+	}
+	if cfg.ClientSecret == "" {
+		missing = append(missing, "GOOGLE_OAUTH_CLIENT_SECRET")
+	}
+
+	keyB64 := os.Getenv("OAUTH_TOKEN_ENCRYPTION_KEY")
+	if keyB64 == "" {
+		missing = append(missing, "OAUTH_TOKEN_ENCRYPTION_KEY")
+	}
+	if len(missing) > 0 {
+		return GoogleOAuthConfig{}, fmt.Errorf("missing required environment variables: %s", strings.Join(missing, ", "))
+	}
+
+	key, err := base64.StdEncoding.DecodeString(keyB64)
+	if err != nil || len(key) != 32 {
+		return GoogleOAuthConfig{}, fmt.Errorf("OAUTH_TOKEN_ENCRYPTION_KEY must be a base64-encoded 32-byte key")
+	}
+
+	cfg.TokenEncryptionKey = key
+	cfg.Enabled = true
 
 	return cfg, nil
 }

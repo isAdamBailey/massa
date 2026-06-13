@@ -16,13 +16,21 @@ async function onLogout() {
       <p class="text-sm text-gray-600">
         Signed in as {{ auth.user?.email }}
       </p>
-      <button
-        type="button"
-        class="rounded-md bg-gray-200 px-3 py-2 text-sm font-medium text-gray-800 hover:bg-gray-300"
-        @click="onLogout"
-      >
-        Log out
-      </button>
+      <div class="flex gap-2">
+        <NuxtLink
+          to="/settings"
+          class="rounded-md bg-gray-200 px-3 py-2 text-sm font-medium text-gray-800 hover:bg-gray-300"
+        >
+          Settings
+        </NuxtLink>
+        <button
+          type="button"
+          class="rounded-md bg-gray-200 px-3 py-2 text-sm font-medium text-gray-800 hover:bg-gray-300"
+          @click="onLogout"
+        >
+          Log out
+        </button>
+      </div>
     </div>
   </div>
 </template>

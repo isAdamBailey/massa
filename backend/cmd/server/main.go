@@ -13,6 +13,7 @@ import (
 	"github.com/isAdamBailey/massa/backend/internal/auth"
 	"github.com/isAdamBailey/massa/backend/internal/config"
 	"github.com/isAdamBailey/massa/backend/internal/db"
+	"github.com/isAdamBailey/massa/backend/internal/googlehealth"
 	"github.com/isAdamBailey/massa/backend/internal/httpapi"
 	"github.com/isAdamBailey/massa/backend/internal/mailer"
 	"github.com/isAdamBailey/massa/backend/internal/users"
@@ -50,6 +51,19 @@ func main() {
 
 	authSvc := auth.NewService(queries, userRepo, mailSvc, cfg.CookieSigningSecret, cfg.CookieSecure, cfg.AppBaseURL)
 
+	var googleDeps *httpapi.GoogleHealthDeps
+	if cfg.GoogleOAuth.Enabled {
+		oauthConfig := googlehealth.OAuthConfig(cfg.GoogleOAuth)
+		credentials := googlehealth.NewPostgresCredentialsRepository(queries, cfg.GoogleOAuth.TokenEncryptionKey)
+		syncMeta := googlehealth.NewPostgresSyncMetadataRepository(queries)
+		googleDeps = &httpapi.GoogleHealthDeps{
+			OAuthConfig: oauthConfig,
+			Credentials: credentials,
+			SyncMeta:    syncMeta,
+			Backfill:    googlehealth.NewBackfillService(queries, credentials, syncMeta, oauthConfig),
+		}
+	}
+
 	r := chi.NewRouter()
 	r.Use(middleware.Logger)
 	r.Use(middleware.Recoverer)
@@ -61,7 +75,7 @@ func main() {
 		MaxAge:           300,
 	}))
 
-	httpapi.NewHandler(authSvc, userRepo).Register(r)
+	httpapi.NewHandler(authSvc, userRepo, cfg.CookieSecure, cfg.AppBaseURL, googleDeps).Register(r)
 
 	log.Printf("listening on :%s", cfg.Port)
 	if err := http.ListenAndServe(":"+cfg.Port, r); err != nil {
