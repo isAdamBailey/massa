@@ -222,7 +222,8 @@ func (h *Handler) deleteWeight(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if h.google != nil && h.google.Push != nil && entry.Source == "manual" && entry.GoogleDataPointID != nil {
+	if h.google != nil && h.google.Push != nil && entry.Source == "manual" && entry.GoogleDataPointID != nil &&
+		entry.GoogleSyncStatus != nil && *entry.GoogleSyncStatus == "synced" {
 		if pushErr := h.google.Push.DeleteWeight(r.Context(), user.ID, *entry.GoogleDataPointID); pushErr != nil && !errors.Is(pushErr, googlehealth.ErrNotConnected) {
 			log.Printf("httpapi: delete weight entry from google health: %v", pushErr)
 		}
@@ -291,9 +292,10 @@ func (h *Handler) pushToGoogle(ctx context.Context, userID uuid.UUID, entry weig
 	if entry.GoogleDataPointID != nil {
 		dataPointID = *entry.GoogleDataPointID
 	}
+	create := entry.GoogleSyncStatus == nil || *entry.GoogleSyncStatus != "synced"
 
 	status := "synced"
-	err := h.google.Push.PushWeight(ctx, userID, dataPointID, entry.WeightKg, entry.RecordedAt)
+	err := h.google.Push.PushWeight(ctx, userID, dataPointID, entry.WeightKg, entry.RecordedAt, create)
 	if errors.Is(err, googlehealth.ErrNotConnected) {
 		return entry
 	}

@@ -7,6 +7,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -122,9 +123,30 @@ func (c *Client) listDataPoints(ctx context.Context, healthUserID, dataType, pag
 	return resp, nil
 }
 
-// UpsertWeightDataPoint creates or replaces the weight data point identified
-// by dataPointID in healthUserID's weight history.
-func (c *Client) UpsertWeightDataPoint(ctx context.Context, healthUserID, dataPointID string, weightGrams float64, recordedAt time.Time) (DataPoint, error) {
+// CreateWeightDataPoint creates a new weight data point in healthUserID's
+// weight history, using dataPointID as the client-supplied data point ID
+// (4-63 characters, lowercase letters/numbers/hyphens).
+func (c *Client) CreateWeightDataPoint(ctx context.Context, healthUserID, dataPointID string, weightGrams float64, recordedAt time.Time) (DataPoint, error) {
+	path := fmt.Sprintf("/users/%s/dataTypes/weight/dataPoints", url.PathEscape(healthUserID))
+	body := DataPoint{
+		Name: weightDataPointName(healthUserID, dataPointID),
+		Weight: &Weight{
+			WeightGrams: weightGrams,
+			SampleTime:  ObservationSampleTime{PhysicalTime: recordedAt.UTC().Format(time.RFC3339Nano)},
+		},
+	}
+
+	var resp DataPoint
+	if err := c.post(ctx, path, body, &resp); err != nil {
+		return DataPoint{}, err
+	}
+	return resp, nil
+}
+
+// UpdateWeightDataPoint replaces the weight data point identified by
+// dataPointID in healthUserID's weight history. The data point must already
+// exist; use CreateWeightDataPoint for new data points.
+func (c *Client) UpdateWeightDataPoint(ctx context.Context, healthUserID, dataPointID string, weightGrams float64, recordedAt time.Time) (DataPoint, error) {
 	path := weightDataPointPath(healthUserID, dataPointID)
 	body := DataPoint{
 		Weight: &Weight{
@@ -150,12 +172,22 @@ func weightDataPointPath(healthUserID, dataPointID string) string {
 	return fmt.Sprintf("/users/%s/dataTypes/weight/dataPoints/%s", url.PathEscape(healthUserID), url.PathEscape(dataPointID))
 }
 
+// weightDataPointName returns the resource name to set on a DataPoint when
+// creating it with a client-supplied dataPointID.
+func weightDataPointName(healthUserID, dataPointID string) string {
+	return fmt.Sprintf("users/%s/dataTypes/weight/dataPoints/%s", healthUserID, dataPointID)
+}
+
 func (c *Client) get(ctx context.Context, path string, query url.Values, out any) error {
 	reqURL := c.baseURL + path
 	if len(query) > 0 {
 		reqURL += "?" + query.Encode()
 	}
 	return c.do(ctx, http.MethodGet, reqURL, nil, out)
+}
+
+func (c *Client) post(ctx context.Context, path string, body, out any) error {
+	return c.do(ctx, http.MethodPost, c.baseURL+path, body, out)
 }
 
 func (c *Client) patch(ctx context.Context, path string, body, out any) error {
@@ -192,7 +224,7 @@ func (c *Client) do(ctx context.Context, method, reqURL string, body, out any) e
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		respBody, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
-		return fmt.Errorf("request %s: unexpected status %d: %s", reqURL, resp.StatusCode, respBody)
+		return fmt.Errorf("request %s: unexpected status %d: %w", reqURL, resp.StatusCode, &apiError{statusCode: resp.StatusCode, body: respBody})
 	}
 
 	if out == nil {
@@ -203,4 +235,21 @@ func (c *Client) do(ctx context.Context, method, reqURL string, body, out any) e
 	}
 
 	return nil
+}
+
+// apiError represents a non-2xx HTTP response from the Google Health API.
+type apiError struct {
+	statusCode int
+	body       []byte
+}
+
+func (e *apiError) Error() string {
+	return fmt.Sprintf("status %d: %s", e.statusCode, e.body)
+}
+
+// isConflict reports whether err is an apiError with a 409 Conflict status,
+// indicating the data point being created already exists.
+func isConflict(err error) bool {
+	var apiErr *apiError
+	return errors.As(err, &apiErr) && apiErr.statusCode == http.StatusConflict
 }

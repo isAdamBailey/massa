@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"strings"
 	"sync"
 	"testing"
 
@@ -128,17 +129,34 @@ var errNotImplemented = errors.New("not implemented")
 
 // googlePushLog records calls made by PushService to the fake Google Health
 // API, so tests can assert that creating/updating/deleting a manual weight
-// entry pushed (or removed) the corresponding data point.
+// entry pushed (or removed) the corresponding data point. It also tracks
+// which data point IDs have been created, so the fake PATCH handler can
+// mimic the real API's 404-on-update-of-nonexistent-point behavior.
 type googlePushLog struct {
 	mu      sync.Mutex
+	created map[string]bool
 	upserts []googlehealth.DataPoint
 	deleted []string
 }
 
-func (l *googlePushLog) recordUpsert(dp googlehealth.DataPoint) {
+func (l *googlePushLog) recordCreate(id string, dp googlehealth.DataPoint) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
+	if l.created == nil {
+		l.created = make(map[string]bool)
+	}
+	l.created[id] = true
 	l.upserts = append(l.upserts, dp)
+}
+
+func (l *googlePushLog) recordUpdate(id string, dp googlehealth.DataPoint) (exists bool) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	if !l.created[id] {
+		return false
+	}
+	l.upserts = append(l.upserts, dp)
+	return true
 }
 
 func (l *googlePushLog) recordDelete(id string) {
@@ -172,7 +190,7 @@ func newGoogleAPIServer(t *testing.T, pushLog *googlePushLog) *httptest.Server {
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write([]byte(`{"name":"users/` + testHealthUserID + `","healthUserId":"` + testHealthUserID + `"}`))
 	})
-	mux.HandleFunc("/users/me/dataTypes/weight/dataPoints", func(w http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc("GET /users/me/dataTypes/weight/dataPoints", func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write([]byte(`{"dataPoints":[]}`))
 	})
@@ -180,12 +198,25 @@ func newGoogleAPIServer(t *testing.T, pushLog *googlePushLog) *httptest.Server {
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write([]byte(`{"dataPoints":[]}`))
 	})
+	mux.HandleFunc("POST /users/me/dataTypes/weight/dataPoints", func(w http.ResponseWriter, r *http.Request) {
+		var dp googlehealth.DataPoint
+		_ = json.NewDecoder(r.Body).Decode(&dp)
+		id := dp.Name[strings.LastIndex(dp.Name, "/")+1:]
+		pushLog.recordCreate(id, dp)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"name":"` + dp.Name + `"}`))
+	})
 	mux.HandleFunc("PATCH /users/me/dataTypes/weight/dataPoints/{id}", func(w http.ResponseWriter, r *http.Request) {
 		var dp googlehealth.DataPoint
 		_ = json.NewDecoder(r.Body).Decode(&dp)
-		pushLog.recordUpsert(dp)
+		id := r.PathValue("id")
+		if !pushLog.recordUpdate(id, dp) {
+			w.WriteHeader(http.StatusNotFound)
+			_, _ = w.Write([]byte(`{"message":"Data point with id ` + id + ` not found."}`))
+			return
+		}
 		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{"name":"users/` + testHealthUserID + `/dataTypes/weight/dataPoints/` + r.PathValue("id") + `"}`))
+		_, _ = w.Write([]byte(`{"name":"users/` + testHealthUserID + `/dataTypes/weight/dataPoints/` + id + `"}`))
 	})
 	mux.HandleFunc("DELETE /users/me/dataTypes/weight/dataPoints/{id}", func(w http.ResponseWriter, r *http.Request) {
 		pushLog.recordDelete(r.PathValue("id"))

@@ -30,16 +30,32 @@ func NewPushServiceForTest(credentials CredentialsRepository, oauthConfig *oauth
 }
 
 // PushWeight creates or updates the Google Health weight data point
-// identified by dataPointID for userID. Returns ErrNotConnected if userID
-// has not connected a Google Health account.
-func (s *PushService) PushWeight(ctx context.Context, userID uuid.UUID, dataPointID string, weightKg float64, recordedAt time.Time) error {
+// identified by dataPointID for userID. If create is true, dataPointID is
+// treated as a not-yet-existing data point and is created (falling back to
+// an update if it turns out to already exist); otherwise the existing data
+// point is updated. Returns ErrNotConnected if userID has not connected a
+// Google Health account.
+func (s *PushService) PushWeight(ctx context.Context, userID uuid.UUID, dataPointID string, weightKg float64, recordedAt time.Time, create bool) error {
 	client, persist, err := newAuthorizedClient(ctx, s.credentials, s.oauthConfig, userID, s.apiBaseURL)
 	if err != nil {
 		return err
 	}
 
-	if _, err := client.UpsertWeightDataPoint(ctx, "me", dataPointID, weightKg*1000, recordedAt); err != nil {
-		return fmt.Errorf("upsert weight data point: %w", err)
+	weightGrams := weightKg * 1000
+	if create {
+		_, err = client.CreateWeightDataPoint(ctx, "me", dataPointID, weightGrams, recordedAt)
+		if err != nil && isConflict(err) {
+			err = nil
+			create = false
+		}
+		if err != nil {
+			return fmt.Errorf("create weight data point: %w", err)
+		}
+	}
+	if !create {
+		if _, err := client.UpdateWeightDataPoint(ctx, "me", dataPointID, weightGrams, recordedAt); err != nil {
+			return fmt.Errorf("update weight data point: %w", err)
+		}
 	}
 
 	return persist(ctx)

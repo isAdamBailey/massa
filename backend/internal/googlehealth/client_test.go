@@ -75,7 +75,32 @@ func TestClient_ListHeightDataPoints(t *testing.T) {
 	assert.Equal(t, "1800", resp.DataPoints[0].Height.HeightMillimeters)
 }
 
-func TestClient_UpsertWeightDataPoint(t *testing.T) {
+func TestClient_CreateWeightDataPoint(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, http.MethodPost, r.Method)
+		assert.Equal(t, "/users/abc123/dataTypes/weight/dataPoints", r.URL.Path)
+
+		var body googlehealth.DataPoint
+		require.NoError(t, json.NewDecoder(r.Body).Decode(&body))
+		assert.Equal(t, "users/abc123/dataTypes/weight/dataPoints/dp-1", body.Name)
+		require.NotNil(t, body.Weight)
+		assert.InDelta(t, 70123.4, body.Weight.WeightGrams, 0.001)
+		assert.Equal(t, "2024-01-02T08:00:00Z", body.Weight.SampleTime.PhysicalTime)
+
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"name": "users/abc123/dataTypes/weight/dataPoints/dp-1"}`))
+	}))
+	defer srv.Close()
+
+	client := googlehealth.NewClientForTest(srv.Client(), srv.URL)
+
+	recordedAt := time.Date(2024, 1, 2, 8, 0, 0, 0, time.UTC)
+	resp, err := client.CreateWeightDataPoint(context.Background(), "abc123", "dp-1", 70123.4, recordedAt)
+	require.NoError(t, err)
+	assert.Equal(t, "users/abc123/dataTypes/weight/dataPoints/dp-1", resp.Name)
+}
+
+func TestClient_UpdateWeightDataPoint(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		assert.Equal(t, http.MethodPatch, r.Method)
 		assert.Equal(t, "/users/abc123/dataTypes/weight/dataPoints/dp-1", r.URL.Path)
@@ -94,7 +119,7 @@ func TestClient_UpsertWeightDataPoint(t *testing.T) {
 	client := googlehealth.NewClientForTest(srv.Client(), srv.URL)
 
 	recordedAt := time.Date(2024, 1, 2, 8, 0, 0, 0, time.UTC)
-	resp, err := client.UpsertWeightDataPoint(context.Background(), "abc123", "dp-1", 70123.4, recordedAt)
+	resp, err := client.UpdateWeightDataPoint(context.Background(), "abc123", "dp-1", 70123.4, recordedAt)
 	require.NoError(t, err)
 	assert.Equal(t, "users/abc123/dataTypes/weight/dataPoints/dp-1", resp.Name)
 }
