@@ -15,6 +15,12 @@ services:
       timeout: 5s
       retries: 5
 
+  mailpit:
+    image: axllent/mailpit:latest
+    ports:
+      - "8025:8025" # web UI
+      - "1025:1025" # SMTP
+
   backend:
     build: ./backend
     ports:
@@ -29,18 +35,20 @@ services:
       GOOGLE_OAUTH_CLIENT_ID: ${GOOGLE_OAUTH_CLIENT_ID}
       GOOGLE_OAUTH_CLIENT_SECRET: ${GOOGLE_OAUTH_CLIENT_SECRET}
       GOOGLE_OAUTH_REDIRECT_URL: ${GOOGLE_OAUTH_REDIRECT_URL:-http://localhost:8080/api/google/callback}
-      EMAIL_PROVIDER: ${EMAIL_PROVIDER:-resend}
+      EMAIL_PROVIDER: ${EMAIL_PROVIDER:-smtp}
       RESEND_API_KEY: ${RESEND_API_KEY}
-      SMTP_HOST: ${SMTP_HOST}
-      SMTP_PORT: ${SMTP_PORT}
+      SMTP_HOST: ${SMTP_HOST:-mailpit}
+      SMTP_PORT: ${SMTP_PORT:-1025}
       SMTP_USERNAME: ${SMTP_USERNAME}
       SMTP_PASSWORD: ${SMTP_PASSWORD}
-      MAGIC_LINK_FROM_EMAIL: ${MAGIC_LINK_FROM_EMAIL}
+      MAGIC_LINK_FROM_EMAIL: ${MAGIC_LINK_FROM_EMAIL:-login@massa.local}
       ALLOWED_EMAILS: ${ALLOWED_EMAILS}
       SYNC_INTERVAL_HOURS: ${SYNC_INTERVAL_HOURS:-12}
     depends_on:
       postgres:
         condition: service_healthy
+      mailpit:
+        condition: service_started
 
   frontend:
     build: ./frontend
