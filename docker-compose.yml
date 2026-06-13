@@ -37,6 +37,7 @@ services:
       GOOGLE_OAUTH_REDIRECT_URL: ${GOOGLE_OAUTH_REDIRECT_URL:-http://localhost:8080/api/google/callback}
       EMAIL_PROVIDER: ${EMAIL_PROVIDER:-smtp}
       RESEND_API_KEY: ${RESEND_API_KEY}
+      SES_REGION: ${SES_REGION}
       SMTP_HOST: ${SMTP_HOST:-mailpit}
       SMTP_PORT: ${SMTP_PORT:-1025}
       SMTP_USERNAME: ${SMTP_USERNAME}

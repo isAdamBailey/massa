@@ -78,6 +78,37 @@ func TestLoad_ResendProviderValid(t *testing.T) {
 	assert.Equal(t, "test-key", cfg.Mailer.ResendAPIKey)
 }
 
+func TestLoad_SESProviderValid(t *testing.T) {
+	setRequiredEnv(t)
+	t.Setenv("EMAIL_PROVIDER", "ses")
+	t.Setenv("SES_REGION", "us-east-1")
+	t.Setenv("SMTP_USERNAME", "ses-user")
+	t.Setenv("SMTP_PASSWORD", "ses-pass")
+	t.Setenv("SMTP_HOST", "")
+	t.Setenv("SMTP_PORT", "")
+
+	cfg, err := config.Load()
+	require.NoError(t, err)
+	assert.Equal(t, "ses", cfg.Mailer.Provider)
+	assert.Equal(t, "email-smtp.us-east-1.amazonaws.com", cfg.Mailer.SMTPHost)
+	assert.Equal(t, "587", cfg.Mailer.SMTPPort)
+	assert.Equal(t, "ses-user", cfg.Mailer.SMTPUsername)
+	assert.Equal(t, "ses-pass", cfg.Mailer.SMTPPassword)
+}
+
+func TestLoad_SESProviderRequiresCredentials(t *testing.T) {
+	setRequiredEnv(t)
+	t.Setenv("EMAIL_PROVIDER", "ses")
+	t.Setenv("SES_REGION", "us-east-1")
+	t.Setenv("SMTP_USERNAME", "")
+	t.Setenv("SMTP_PASSWORD", "")
+
+	_, err := config.Load()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "SMTP_USERNAME")
+	assert.Contains(t, err.Error(), "SMTP_PASSWORD")
+}
+
 func TestLoad_InvalidEmailProvider(t *testing.T) {
 	setRequiredEnv(t)
 	t.Setenv("EMAIL_PROVIDER", "carrier-pigeon")

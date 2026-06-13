@@ -23,8 +23,10 @@ frontend/   Nuxt 4 PWA
 
 ## Deployment
 
-See [docs/DEPLOY_DIGITALOCEAN.md](docs/DEPLOY_DIGITALOCEAN.md) for deploying
-from GitHub to an Ubuntu droplet with Docker Compose and Caddy.
+- **[DigitalOcean App Platform](docs/DEPLOY_DIGITALOCEAN_APP_PLATFORM.md)** — deploy from GitHub with managed Postgres and built-in HTTPS (recommended if you don't want to manage a server)
+- **[DigitalOcean Droplet](docs/DEPLOY_DIGITALOCEAN.md)** — Docker Compose + Caddy on a VPS
+
+Magic-link email in production uses [AWS SES](docs/AWS_SES_SETUP.md).
 
 ## Local development
 

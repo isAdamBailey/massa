@@ -7,8 +7,8 @@ import (
 	"net/smtp"
 )
 
-// SMTPMailer sends email via an SMTP relay (e.g. Mailpit for local
-// development, or a provider's SMTP endpoint).
+// SMTPMailer sends email via an SMTP relay (e.g. Mailpit for local development,
+// or AWS SES SMTP).
 type SMTPMailer struct {
 	host     string
 	port     string

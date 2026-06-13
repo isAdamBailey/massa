@@ -3,6 +3,8 @@
 Guide for deploying Massa from GitHub onto an Ubuntu DigitalOcean droplet using
 Docker Compose and Caddy for HTTPS.
 
+> **Using App Platform instead?** See [DEPLOY_DIGITALOCEAN_APP_PLATFORM.md](./DEPLOY_DIGITALOCEAN_APP_PLATFORM.md) — no droplet, Docker Compose, or Caddy required.
+
 **Repo:** https://github.com/isAdamBailey/massa
 
 ## Architecture
@@ -22,7 +24,7 @@ everything else to the Nuxt frontend.
 
 - Ubuntu 22.04 or 24.04 droplet (2 GB RAM recommended)
 - DNS A record pointing your domain at the droplet IP
-- [Resend](https://resend.com) account for magic-link email (or another SMTP provider)
+- [AWS SES](https://aws.amazon.com/ses/) for magic-link email — see [AWS_SES_SETUP.md](./AWS_SES_SETUP.md)
 - Optional: Google OAuth credentials — see [GOOGLE_HEALTH_SETUP.md](./GOOGLE_HEALTH_SETUP.md)
 
 ---
@@ -129,8 +131,10 @@ GOOGLE_OAUTH_CLIENT_ID=<optional>
 GOOGLE_OAUTH_CLIENT_SECRET=<optional>
 GOOGLE_OAUTH_REDIRECT_URL=https://massa.example.com/api/google/callback
 
-EMAIL_PROVIDER=resend
-RESEND_API_KEY=<your-resend-api-key>
+EMAIL_PROVIDER=ses
+SES_REGION=us-east-1
+SMTP_USERNAME=<ses-smtp-username>
+SMTP_PASSWORD=<ses-smtp-password>
 MAGIC_LINK_FROM_EMAIL=login@massa.example.com
 
 ALLOWED_EMAILS=you@example.com
@@ -174,7 +178,7 @@ curl -s https://massa.example.com/healthz
 Expected: `{"status":"ok"}`
 
 Open `https://massa.example.com` in a browser and request a magic link. Check
-that the email arrives via Resend.
+that the email arrives via AWS SES.
 
 ### 10. Enable Docker on boot
 
@@ -217,7 +221,7 @@ The backend runs database migrations automatically on startup.
 | Symptom | Likely cause |
 |---------|--------------|
 | Login fails / cookies not set | `APP_BASE_URL` or `NUXT_PUBLIC_API_BASE` doesn't match your HTTPS domain; or `COOKIE_SECURE` is not `true` |
-| Magic link never arrives | Wrong `RESEND_API_KEY` or unverified `MAGIC_LINK_FROM_EMAIL` |
+| Magic link never arrives | Wrong SES SMTP credentials, unverified `MAGIC_LINK_FROM_EMAIL`, or SES sandbox blocking the recipient |
 | 502 from Caddy | Backend or frontend not running — check `docker compose ps` and logs |
 | Google OAuth redirect error | Redirect URI in Google Console doesn't exactly match `GOOGLE_OAUTH_REDIRECT_URL` |
 | Caddy can't get certificate | DNS not propagated, or ports 80/443 blocked |
@@ -263,7 +267,10 @@ Key production .env values:
 - APP_BASE_URL=https://[YOUR DOMAIN]
 - NUXT_PUBLIC_API_BASE=https://[YOUR DOMAIN]
 - COOKIE_SECURE=true
-- EMAIL_PROVIDER=resend
+- EMAIL_PROVIDER=ses
+- SES_REGION=us-east-1
+- SMTP_USERNAME / SMTP_PASSWORD (AWS SES SMTP credentials)
+- MAGIC_LINK_FROM_EMAIL verified in SES
 - GOOGLE_OAUTH_REDIRECT_URL=https://[YOUR DOMAIN]/api/google/callback
 ```
 

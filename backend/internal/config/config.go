@@ -63,13 +63,19 @@ func Load() (Config, error) {
 	switch cfg.Mailer.Provider {
 	case "resend":
 		cfg.Mailer.ResendAPIKey = require("RESEND_API_KEY")
+	case "ses":
+		region := require("SES_REGION")
+		cfg.Mailer.SMTPHost = envOrDefault("SMTP_HOST", fmt.Sprintf("email-smtp.%s.amazonaws.com", region))
+		cfg.Mailer.SMTPPort = envOrDefault("SMTP_PORT", "587")
+		cfg.Mailer.SMTPUsername = require("SMTP_USERNAME")
+		cfg.Mailer.SMTPPassword = require("SMTP_PASSWORD")
 	case "smtp":
 		cfg.Mailer.SMTPHost = require("SMTP_HOST")
 		cfg.Mailer.SMTPPort = require("SMTP_PORT")
 		cfg.Mailer.SMTPUsername = os.Getenv("SMTP_USERNAME")
 		cfg.Mailer.SMTPPassword = os.Getenv("SMTP_PASSWORD")
 	default:
-		return Config{}, fmt.Errorf(`EMAIL_PROVIDER must be "resend" or "smtp", got %q`, cfg.Mailer.Provider)
+		return Config{}, fmt.Errorf(`EMAIL_PROVIDER must be "resend", "smtp", or "ses", got %q`, cfg.Mailer.Provider)
 	}
 
 	if len(missing) > 0 {

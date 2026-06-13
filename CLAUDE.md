@@ -81,7 +81,7 @@ npx vue-tsc --noEmit -p .nuxt/tsconfig.json   # type-check (run `npx nuxt prepar
   `UnitsPreference string`.
 - `internal/auth` — passwordless magic-link auth, session cookies, CSRF
   tokens.
-- `internal/mailer` — pluggable email delivery (`resend` or `smtp`/Mailpit).
+- `internal/mailer` — pluggable email delivery (`resend`, `smtp`/Mailpit, or `ses`/AWS SES SMTP).
 - `internal/bmi` — pure `Calculate(weightKg, heightCm) float64`.
 - `internal/heights` — `Resolver.Resolve(ctx, userID)` returns the height
   (cm) to use for BMI: the most recent `height_entries` row, else the
