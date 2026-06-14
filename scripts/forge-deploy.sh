@@ -12,6 +12,25 @@ fi
 
 cd "$ROOT"
 
+export PATH="/usr/local/go/bin:$HOME/go/bin:$PATH"
+
+ENV_FILE=""
+for candidate in "$ROOT/.env" "$ROOT/../.env"; do
+  if [[ -f "$candidate" ]]; then
+    ENV_FILE="$(cd "$(dirname "$candidate")" && pwd)/$(basename "$candidate")"
+    break
+  fi
+done
+
+if [[ -n "$ENV_FILE" ]]; then
+  set -a
+  # shellcheck disable=SC1091
+  source "$ENV_FILE"
+  set +a
+fi
+
+export NUXT_PORT="${NUXT_PORT:-3001}"
+
 git pull origin "$FORGE_SITE_BRANCH"
 
 chmod +x scripts/run-api.sh
@@ -23,7 +42,8 @@ cd ..
 cd frontend
 npm ci
 npm run build
-pm2 startOrReload ecosystem.config.cjs
+pm2 startOrReload ecosystem.config.cjs --update-env
+pm2 save
 cd ..
 
 if [[ -n "${FORGE_API_DAEMON:-}" ]]; then
