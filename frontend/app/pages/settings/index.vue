@@ -65,7 +65,7 @@ async function onSaveSettings() {
 
 <template>
   <div class="min-h-screen bg-carbon px-4 py-6 text-mist sm:px-6 sm:py-10">
-    <div class="mx-auto flex max-w-xl flex-col gap-4">
+    <div class="mx-auto flex max-w-3xl flex-col gap-4">
       <header class="flex items-center justify-between">
         <h1 class="text-headline font-sans">
           Settings
@@ -87,41 +87,43 @@ async function onSaveSettings() {
           class="space-y-3"
           @submit.prevent="onSaveSettings"
         >
-          <div>
-            <label
-              for="units-preference"
-              class="block text-label text-fog"
-            >Units</label>
-            <select
-              id="units-preference"
-              v-model="unitsPreference"
-              class="mt-1 w-full rounded-sm bg-graphite px-3 py-2 text-body text-mist"
-            >
-              <option value="metric">
-                Metric (kg, cm)
-              </option>
-              <option value="imperial">
-                Imperial (lb, in)
-              </option>
-            </select>
-          </div>
+          <div class="flex flex-wrap gap-3">
+            <div class="flex-1">
+              <label
+                for="units-preference"
+                class="block text-label text-fog"
+              >Units</label>
+              <select
+                id="units-preference"
+                v-model="unitsPreference"
+                class="mt-1 w-full rounded-sm bg-graphite px-3 py-2 text-body text-mist"
+              >
+                <option value="metric">
+                  Metric (kg, cm)
+                </option>
+                <option value="imperial">
+                  Imperial (lb, in)
+                </option>
+              </select>
+            </div>
 
-          <div>
-            <label
-              for="manual-height"
-              class="block text-label text-fog"
-            >
-              Height override ({{ unitsPreference === 'imperial' ? 'in' : 'cm' }})
-            </label>
-            <input
-              id="manual-height"
-              v-model="heightInput"
-              type="number"
-              step="0.1"
-              min="0"
-              placeholder="Used when no synced height is available"
-              class="mt-1 w-full rounded-sm bg-graphite px-3 py-2 text-body text-mist placeholder:text-[oklch(0.70_0.01_170)]"
-            >
+            <div class="flex-1">
+              <label
+                for="manual-height"
+                class="block text-label text-fog"
+              >
+                Height override ({{ unitsPreference === 'imperial' ? 'in' : 'cm' }})
+              </label>
+              <input
+                id="manual-height"
+                v-model="heightInput"
+                type="number"
+                step="0.1"
+                min="0"
+                placeholder="Used when no synced height is available"
+                class="mt-1 w-full rounded-sm bg-graphite px-3 py-2 text-body text-mist placeholder:text-[oklch(0.70_0.01_170)]"
+              >
+            </div>
           </div>
 
           <p
