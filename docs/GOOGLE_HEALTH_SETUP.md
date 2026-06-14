@@ -25,8 +25,10 @@ connected" with no way to connect.
 4. Create an **OAuth Client ID** ("APIs & Services" → "Credentials" → "Create
    Credentials" → "OAuth client ID"):
    - Application type: **Web application**.
-   - Authorized redirect URI: must exactly match `GOOGLE_OAUTH_REDIRECT_URL`,
-     e.g. `http://localhost:8080/api/google/callback` for local dev.
+   - Authorized redirect URI: must exactly match `GOOGLE_OAUTH_REDIRECT_URL`:
+     - Local: `http://localhost:8080/api/google/callback`
+     - Production: `https://your-domain.com/api/google/callback` (see
+       [DEPLOY.md](./DEPLOY.md))
 5. Copy the generated **Client ID** and **Client secret** into your `.env` as
    `GOOGLE_OAUTH_CLIENT_ID` and `GOOGLE_OAUTH_CLIENT_SECRET`.
 

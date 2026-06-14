@@ -15,6 +15,7 @@ magic-link login.
 - **Frontend**: Nuxt 4 SPA (`ssr: false`), Tailwind v4, Pinia, Chart.js
 - **Database**: PostgreSQL 16
 - **Local dev**: Docker Compose (Postgres + Mailpit + backend + frontend)
+- **Production**: Laravel Forge on a VPS — see `docs/DEPLOY.md`
 
 ## Commands
 
@@ -60,6 +61,10 @@ npm run build
 npx vue-tsc --noEmit -p .nuxt/tsconfig.json   # type-check (run `npx nuxt prepare` first if .nuxt is stale)
 ```
 
+### Production deploy
+
+Forge runs `scripts/forge-deploy.sh` on push. See `docs/DEPLOY.md`.
+
 ## Architecture
 
 ### Backend package structure
@@ -81,7 +86,8 @@ npx vue-tsc --noEmit -p .nuxt/tsconfig.json   # type-check (run `npx nuxt prepar
   `UnitsPreference string`.
 - `internal/auth` — passwordless magic-link auth, session cookies, CSRF
   tokens.
-- `internal/mailer` — pluggable email delivery (`resend`, `smtp`/Mailpit, or `ses`/AWS SES SMTP).
+- `internal/mailer` — email delivery via SMTP (Mailpit locally, AWS SES in
+  production).
 - `internal/bmi` — pure `Calculate(weightKg, heightCm) float64`.
 - `internal/heights` — `Resolver.Resolve(ctx, userID)` returns the height
   (cm) to use for BMI: the most recent `height_entries` row, else the

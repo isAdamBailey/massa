@@ -18,15 +18,15 @@ allowlist of email addresses via passwordless magic-link login.
 
 ```
 backend/    Go API server (cmd/server, cmd/migrate, internal/...)
-frontend/   Nuxt 4 PWA
+frontend/   Nuxt 4 SPA
+scripts/    Forge deploy script and API daemon wrapper
+docs/       Deployment, SES, and Google Health setup
 ```
 
 ## Deployment
 
-See [docs/DEPLOY_FORGE.md](docs/DEPLOY_FORGE.md) for deploying on a VPS with
+See [docs/DEPLOY.md](docs/DEPLOY.md) for production on a VPS with
 [Laravel Forge](https://forge.laravel.com) (push-to-deploy from GitHub).
-
-Magic-link email in production uses [AWS SES](docs/AWS_SES_SETUP.md).
 
 ## Local development
 
