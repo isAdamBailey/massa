@@ -8,7 +8,6 @@ module.exports = {
       exec_mode: 'fork',
       env: {
         NODE_ENV: 'production',
-        PORT: process.env.NUXT_PORT || 3000,
         HOST: '127.0.0.1',
       },
     },

@@ -30,6 +30,7 @@ if [[ -n "$ENV_FILE" ]]; then
 fi
 
 export NUXT_PORT="${NUXT_PORT:-3001}"
+export PORT="$NUXT_PORT"
 
 git pull origin "$FORGE_SITE_BRANCH"
 
@@ -42,7 +43,8 @@ cd ..
 cd frontend
 npm ci
 npm run build
-pm2 startOrReload ecosystem.config.cjs --update-env
+pm2 delete massa-web 2>/dev/null || true
+pm2 start ecosystem.config.cjs --update-env
 pm2 save
 cd ..
 
