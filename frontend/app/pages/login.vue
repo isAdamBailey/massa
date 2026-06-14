@@ -19,8 +19,12 @@ async function onSubmit() {
   <div class="flex min-h-screen items-center justify-center bg-carbon px-4 py-6 text-mist sm:px-6 sm:py-10">
     <div class="mx-auto flex w-full max-w-3xl justify-center">
       <div class="w-full max-w-sm space-y-8">
-        <div class="space-y-1 text-center">
-          <h1 class="text-headline font-sans">
+        <div class="space-y-2 text-center">
+          <h1 class="flex items-center justify-center gap-2.5 text-wordmark font-mono tabular-nums tracking-tight">
+            <span class="relative flex h-2 w-2 shrink-0">
+              <span class="absolute inset-0 rounded-full bg-verdigris animate-glow-pulse" />
+              <span class="relative h-2 w-2 rounded-full bg-verdigris" />
+            </span>
             Massa
           </h1>
           <p class="text-body text-fog">

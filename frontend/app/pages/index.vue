@@ -73,11 +73,6 @@ onMounted(async () => {
 
 watch(rangePreset, loadEntries)
 
-async function onLogout() {
-  await auth.logout()
-  await navigateTo('/login')
-}
-
 function formatDate(value?: string) {
   if (!value) {
     return 'never'
@@ -89,26 +84,10 @@ function formatDate(value?: string) {
 <template>
   <div class="min-h-screen bg-carbon px-4 py-6 text-mist sm:px-6 sm:py-10">
     <div class="mx-auto flex max-w-3xl flex-col gap-4">
-      <header class="flex items-center justify-between">
-        <h1 class="text-headline font-sans">
-          Massa
-        </h1>
-        <div class="flex gap-2">
-          <NuxtLink
-            to="/settings"
-            class="rounded-sm bg-graphite px-4 py-2 text-label text-mist transition-colors duration-150 hover:bg-graphite-hover"
-          >
-            Settings
-          </NuxtLink>
-          <button
-            type="button"
-            class="rounded-sm bg-graphite px-4 py-2 text-label text-mist transition-colors duration-150 hover:bg-graphite-hover"
-            @click="onLogout"
-          >
-            Log out
-          </button>
-        </div>
-      </header>
+      <h1 class="sr-only">
+        Dashboard
+      </h1>
+      <AppHeader />
 
       <p class="text-label text-fog">
         Signed in as {{ auth.user?.email }}

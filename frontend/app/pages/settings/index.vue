@@ -66,17 +66,11 @@ async function onSaveSettings() {
 <template>
   <div class="min-h-screen bg-carbon px-4 py-6 text-mist sm:px-6 sm:py-10">
     <div class="mx-auto flex max-w-3xl flex-col gap-4">
-      <header class="flex items-center justify-between">
-        <h1 class="text-headline font-sans">
-          Settings
-        </h1>
-        <NuxtLink
-          to="/"
-          class="rounded-sm bg-graphite px-4 py-2 text-label text-mist transition-colors duration-150 hover:bg-graphite-hover"
-        >
-          Back
-        </NuxtLink>
-      </header>
+      <AppHeader />
+
+      <h1 class="text-headline font-sans">
+        Settings
+      </h1>
 
       <section class="space-y-3 rounded-md bg-slate p-5">
         <h2 class="text-title font-sans">
