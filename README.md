@@ -23,8 +23,8 @@ frontend/   Nuxt 4 PWA
 
 ## Deployment
 
-- **[DigitalOcean App Platform](docs/DEPLOY_DIGITALOCEAN_APP_PLATFORM.md)** — deploy from GitHub with managed Postgres and built-in HTTPS (recommended if you don't want to manage a server)
-- **[DigitalOcean Droplet](docs/DEPLOY_DIGITALOCEAN.md)** — Docker Compose + Caddy on a VPS
+See [docs/DEPLOY_FORGE.md](docs/DEPLOY_FORGE.md) for deploying on a VPS with
+[Laravel Forge](https://forge.laravel.com) (push-to-deploy from GitHub).
 
 Magic-link email in production uses [AWS SES](docs/AWS_SES_SETUP.md).
 
