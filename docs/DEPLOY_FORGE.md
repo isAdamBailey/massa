@@ -120,12 +120,14 @@ same file via `scripts/run-api.sh`.
 3. **Directory:** `/home/forge/massa.example.com`
 4. **User:** `forge`
 
-After creating the daemon, copy its supervisor name (e.g. `daemon-1234567`) from
-the Forge daemon page and add to the site **Environment**:
+After creating the daemon, copy its supervisor name from the Forge daemon page
+(e.g. `daemon-1234567`) and add to the site **Environment**:
 
 ```env
 FORGE_API_DAEMON=daemon-1234567
 ```
+
+Use the full name including the `daemon-` prefix — not the numeric id alone.
 
 The deploy script restarts this daemon after each push.
 

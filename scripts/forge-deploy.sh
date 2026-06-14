@@ -34,6 +34,11 @@ export PORT="$NUXT_PORT"
 
 git pull origin "$FORGE_SITE_BRANCH"
 
+if [[ "${DEPLOY_SCRIPT_REEXECED:-}" != "1" && -f "$ROOT/scripts/forge-deploy.sh" ]]; then
+  export DEPLOY_SCRIPT_REEXECED=1
+  exec bash "$ROOT/scripts/forge-deploy.sh"
+fi
+
 chmod +x scripts/run-api.sh
 
 cd backend
@@ -49,5 +54,7 @@ pm2 save
 cd ..
 
 if [[ -n "${FORGE_API_DAEMON:-}" ]]; then
-  sudo supervisorctl restart "$FORGE_API_DAEMON"
+  if ! sudo supervisorctl restart "$FORGE_API_DAEMON"; then
+    echo "Warning: could not restart $FORGE_API_DAEMON — check Server → Daemons for the supervisor name (e.g. daemon-1234567)" >&2
+  fi
 fi
