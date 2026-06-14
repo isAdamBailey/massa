@@ -2,18 +2,28 @@ const KG_PER_LB = 0.45359237
 const CM_PER_IN = 2.54
 
 /**
+ * BMI category boundaries (WHO adult thresholds), shared between the
+ * category label and the chart's reference-range bands.
+ */
+export const BMI_BOUNDARIES = {
+  underweight: 18.5,
+  overweight: 25,
+  obese: 30
+} as const
+
+/**
  * useBmi provides BMI categorization and metric/imperial unit conversions
  * shared across the dashboard and settings forms.
  */
 export function useBmi() {
   function category(bmi: number): string {
-    if (bmi < 18.5) {
+    if (bmi < BMI_BOUNDARIES.underweight) {
       return 'Underweight'
     }
-    if (bmi < 25) {
+    if (bmi < BMI_BOUNDARIES.overweight) {
       return 'Normal'
     }
-    if (bmi < 30) {
+    if (bmi < BMI_BOUNDARIES.obese) {
       return 'Overweight'
     }
     return 'Obese'

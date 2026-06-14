@@ -12,7 +12,10 @@ function nowForInput(): string {
 const weightInput = ref('')
 const dateInput = ref(nowForInput())
 const submitting = ref(false)
+const justSaved = ref(false)
 const formError = ref<string | null>(null)
+
+let savedTimeout: ReturnType<typeof setTimeout> | undefined
 
 const unitLabel = computed(() => settings.settings.unitsPreference === 'imperial' ? 'lb' : 'kg')
 
@@ -38,6 +41,11 @@ async function onSubmit() {
     if (entry) {
       weightInput.value = ''
       dateInput.value = nowForInput()
+      clearTimeout(savedTimeout)
+      justSaved.value = true
+      savedTimeout = setTimeout(() => {
+        justSaved.value = false
+      }, 1800)
     } else {
       formError.value = weights.error
     }
@@ -45,6 +53,8 @@ async function onSubmit() {
     submitting.value = false
   }
 }
+
+onUnmounted(() => clearTimeout(savedTimeout))
 </script>
 
 <template>
@@ -91,9 +101,93 @@ async function onSubmit() {
     <button
       type="submit"
       :disabled="submitting"
-      class="rounded-sm bg-verdigris px-4 py-2 text-label text-carbon transition-colors duration-150 hover:bg-verdigris-hover disabled:opacity-50"
+      class="flex w-full items-center justify-center gap-2 rounded-sm bg-verdigris px-5 py-2.5 text-label text-carbon transition-colors duration-150 hover:bg-verdigris-hover disabled:cursor-not-allowed disabled:opacity-70 sm:w-auto sm:min-w-32"
     >
-      {{ submitting ? 'Saving…' : 'Add entry' }}
+      <Transition
+        name="fade"
+        mode="out-in"
+      >
+        <span
+          v-if="justSaved"
+          key="saved"
+          class="flex items-center gap-2"
+        >
+          <svg
+            class="h-4 w-4"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2.5"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            aria-hidden="true"
+          >
+            <path d="M5 12.5 9.5 17 19 7" />
+          </svg>
+          Added
+        </span>
+        <span
+          v-else-if="submitting"
+          key="submitting"
+          class="flex items-center gap-2"
+        >
+          <svg
+            class="h-4 w-4 animate-spinner"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            aria-hidden="true"
+          >
+            <circle
+              cx="12"
+              cy="12"
+              r="9"
+              stroke-width="2.5"
+              stroke-linecap="round"
+              stroke-dasharray="40 16"
+            />
+          </svg>
+          Saving…
+        </span>
+        <span
+          v-else
+          key="idle"
+          class="flex items-center gap-2"
+        >
+          <svg
+            class="h-4 w-4"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2.5"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            aria-hidden="true"
+          >
+            <path d="M12 5v14M5 12h14" />
+          </svg>
+          Add entry
+        </span>
+      </Transition>
     </button>
   </form>
 </template>
+
+<style scoped>
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 150ms ease-out;
+}
+
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fade-enter-active,
+  .fade-leave-active {
+    transition: none;
+  }
+}
+</style>

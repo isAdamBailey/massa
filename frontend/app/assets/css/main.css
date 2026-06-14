@@ -13,6 +13,7 @@
   --color-verdigris: oklch(0.70 0.09 170);
   --color-verdigris-hover: oklch(0.76 0.09 170);
   --color-ember: oklch(0.62 0.17 25);
+  --color-amber: oklch(0.75 0.14 80);
 
   /* Type families */
   --font-sans: "IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
@@ -87,6 +88,22 @@
     .animate-glow-pulse {
       animation: none;
       opacity: 0.85;
+    }
+  }
+
+  @keyframes spinner-rotate {
+    to {
+      transform: rotate(360deg);
+    }
+  }
+
+  .animate-spinner {
+    animation: spinner-rotate 0.7s linear infinite;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .animate-spinner {
+      animation: none;
     }
   }
 }

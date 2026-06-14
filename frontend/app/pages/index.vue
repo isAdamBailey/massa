@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import type { WeightEntry } from '~/stores/weights'
+
 const auth = useAuthStore()
 const weights = useWeightsStore()
 const settings = useSettingsStore()
@@ -10,7 +12,7 @@ type ChartViewMode = 'daily' | 'weekly'
 type ChartMetricMode = 'weight' | 'bmi'
 
 const rangePreset = ref<RangePreset>('90d')
-const chartViewMode = ref<ChartViewMode>('daily')
+const chartViewMode = ref<ChartViewMode>('weekly')
 const chartMetricMode = ref<ChartMetricMode>('weight')
 
 const rangePresets: { value: RangePreset, label: string }[] = [
@@ -42,7 +44,24 @@ async function loadEntries() {
 
 const { currentWeekAverage } = useWeeklyAverages()
 
-const latestEntry = computed(() => weights.entries.at(-1) ?? null)
+/**
+ * Google sync can backfill a data point for a timestamp that already has a
+ * manual entry, recomputed against whatever height was current at sync
+ * time. When both exist for the same instant, prefer the manual one so
+ * "latest" stats and the chart agree with the user's own input.
+ */
+const displayEntries = computed(() => {
+  const byRecordedAt = new Map<string, WeightEntry>()
+  for (const entry of weights.entries) {
+    const existing = byRecordedAt.get(entry.recordedAt)
+    if (!existing || (existing.source !== 'manual' && entry.source === 'manual')) {
+      byRecordedAt.set(entry.recordedAt, entry)
+    }
+  }
+  return Array.from(byRecordedAt.values()).sort((a, b) => a.recordedAt.localeCompare(b.recordedAt))
+})
+
+const latestEntry = computed(() => displayEntries.value.at(-1) ?? null)
 
 const weightUnitLabel = computed(() => settings.settings.unitsPreference === 'imperial' ? 'lb' : 'kg')
 
@@ -57,7 +76,7 @@ const latestWeightDisplay = computed(() => {
 })
 
 const weeklyAverageDisplay = computed(() => {
-  const average = currentWeekAverage(weights.entries)
+  const average = currentWeekAverage(displayEntries.value)
   if (!average) {
     return null
   }
@@ -165,7 +184,7 @@ function formatDate(value?: string) {
           v-else
           v-model:view-mode="chartViewMode"
           v-model:metric-mode="chartMetricMode"
-          :entries="weights.entries"
+          :entries="displayEntries"
           :units-preference="settings.settings.unitsPreference"
         />
 

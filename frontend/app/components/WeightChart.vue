@@ -9,7 +9,9 @@ import {
   TimeScale,
   Tooltip
 } from 'chart.js'
+import type { Plugin } from 'chart.js'
 import { Line } from 'vue-chartjs'
+import { BMI_BOUNDARIES } from '~/composables/useBmi'
 import type { UnitsPreference } from '~/stores/settings'
 import type { WeightEntry } from '~/stores/weights'
 
@@ -20,13 +22,13 @@ const props = defineProps<{
   unitsPreference: UnitsPreference
 }>()
 
-const { kgToLb } = useBmi()
+const { kgToLb, category } = useBmi()
 const { computeWeeklyAverageBy, computeWeeklyAverages } = useWeeklyAverages()
 
 type ViewMode = 'daily' | 'weekly'
 type MetricMode = 'weight' | 'bmi'
 
-const viewMode = defineModel<ViewMode>('viewMode', { default: 'daily' })
+const viewMode = defineModel<ViewMode>('viewMode', { default: 'weekly' })
 const metricMode = defineModel<MetricMode>('metricMode', { default: 'weight' })
 
 const VERDIGRIS = 'oklch(0.70 0.09 170)'
@@ -34,6 +36,107 @@ const FOG = 'oklch(0.64 0.01 170)'
 const HAIRLINE = 'oklch(0.32 0.006 170)'
 const GRAPHITE = 'oklch(0.28 0.006 170)'
 const MIST = 'oklch(0.95 0.003 170)'
+const AMBER = 'oklch(0.75 0.14 80)'
+const AMBER_WASH = 'oklch(0.75 0.14 80 / 0.10)'
+const EMBER = 'oklch(0.62 0.17 25)'
+const EMBER_WASH = 'oklch(0.62 0.17 25 / 0.12)'
+
+// BMI reference-range bands, drawn behind the line in BMI mode only.
+// Normal/underweight ranges stay untinted; only the elevated ranges get a wash.
+const BMI_ZONES: { from: number, to: number, color: string, wash: string, label: string }[] = [
+  { from: BMI_BOUNDARIES.overweight, to: BMI_BOUNDARIES.obese, color: AMBER, wash: AMBER_WASH, label: 'Overweight' },
+  { from: BMI_BOUNDARIES.obese, to: Infinity, color: EMBER, wash: EMBER_WASH, label: 'Obese' }
+]
+
+// The single most recent entry with a BMI value, regardless of view mode -
+// used to mark "today" on the chart even when the line itself shows a
+// weekly average that can land in a different BMI category.
+const latestBmiEntry = computed(() => {
+  for (let i = props.entries.length - 1; i >= 0; i--) {
+    const entry = props.entries[i]
+    if (entry?.bmi != null) {
+      return entry
+    }
+  }
+  return null
+})
+
+const bmiZonesPlugin: Plugin<'line'> = {
+  id: 'bmiZones',
+  beforeDraw(chart) {
+    if (metricMode.value !== 'bmi') {
+      return
+    }
+    const { ctx, chartArea, scales } = chart
+    const yScale = scales.y
+    if (!yScale) {
+      return
+    }
+
+    ctx.save()
+    for (const zone of BMI_ZONES) {
+      if (zone.from > yScale.max) {
+        continue
+      }
+      const top = Math.max(yScale.getPixelForValue(Math.min(zone.to, yScale.max)), chartArea.top)
+      const bottom = Math.min(yScale.getPixelForValue(zone.from), chartArea.bottom)
+      if (bottom - top < 1) {
+        continue
+      }
+
+      ctx.fillStyle = zone.wash
+      ctx.fillRect(chartArea.left, top, chartArea.right - chartArea.left, bottom - top)
+
+      if (bottom - top >= 16) {
+        ctx.fillStyle = zone.color
+        ctx.font = '500 11px "IBM Plex Sans", sans-serif'
+        ctx.textAlign = 'right'
+        ctx.textBaseline = 'top'
+        ctx.fillText(zone.label, chartArea.right - 6, top + 4)
+      }
+    }
+    ctx.restore()
+  },
+  afterDatasetsDraw(chart) {
+    if (metricMode.value !== 'bmi' || !latestBmiEntry.value) {
+      return
+    }
+    const { ctx, chartArea, scales } = chart
+    const yScale = scales.y
+    if (!yScale) {
+      return
+    }
+
+    const bmi = latestBmiEntry.value.bmi as number
+    const y = Math.min(Math.max(yScale.getPixelForValue(bmi), chartArea.top), chartArea.bottom)
+
+    ctx.save()
+    ctx.strokeStyle = MIST
+    ctx.globalAlpha = 0.35
+    ctx.lineWidth = 1
+    ctx.setLineDash([4, 4])
+    ctx.beginPath()
+    ctx.moveTo(chartArea.left, y)
+    ctx.lineTo(chartArea.right, y)
+    ctx.stroke()
+    ctx.restore()
+
+    const label = `Latest ${bmi.toFixed(1)} · ${category(bmi)}`
+    ctx.save()
+    ctx.font = '500 11px "IBM Plex Sans", sans-serif'
+    ctx.textBaseline = 'middle'
+    const textWidth = ctx.measureText(label).width
+    const paddingX = 6
+    const boxHeight = 18
+    const boxY = Math.min(Math.max(y - boxHeight / 2, chartArea.top), chartArea.bottom - boxHeight)
+    ctx.fillStyle = 'oklch(0.22 0.005 170 / 0.85)'
+    ctx.fillRect(chartArea.left + 4, boxY, textWidth + paddingX * 2, boxHeight)
+    ctx.fillStyle = MIST
+    ctx.textAlign = 'left'
+    ctx.fillText(label, chartArea.left + 4 + paddingX, boxY + boxHeight / 2 + 1)
+    ctx.restore()
+  }
+}
 
 const chartData = computed(() => {
   if (metricMode.value === 'bmi') {
@@ -90,6 +193,10 @@ const chartOptions = computed(() => ({
     },
     y: {
       beginAtZero: false,
+      grace: '5%',
+      ...(metricMode.value === 'bmi' && latestBmiEntry.value
+        ? { suggestedMin: (latestBmiEntry.value.bmi as number) - 1, suggestedMax: (latestBmiEntry.value.bmi as number) + 1 }
+        : {}),
       ticks: { color: FOG },
       grid: { color: HAIRLINE }
     }
@@ -111,12 +218,16 @@ const chartOptions = computed(() => ({
 
 <template>
   <div>
-    <div class="mb-3 flex flex-wrap justify-between gap-2">
-      <div class="flex gap-2">
+    <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
+      <div
+        role="group"
+        aria-label="Metric"
+        class="flex gap-1 rounded-sm bg-graphite p-1"
+      >
         <button
           type="button"
           class="rounded-sm px-3 py-1.5 text-label transition-colors duration-150"
-          :class="metricMode === 'weight' ? 'bg-verdigris text-carbon' : 'bg-graphite text-mist hover:bg-graphite-hover'"
+          :class="metricMode === 'weight' ? 'bg-verdigris text-carbon' : 'text-mist hover:bg-graphite-hover'"
           @click="metricMode = 'weight'"
         >
           Weight
@@ -124,17 +235,21 @@ const chartOptions = computed(() => ({
         <button
           type="button"
           class="rounded-sm px-3 py-1.5 text-label transition-colors duration-150"
-          :class="metricMode === 'bmi' ? 'bg-verdigris text-carbon' : 'bg-graphite text-mist hover:bg-graphite-hover'"
+          :class="metricMode === 'bmi' ? 'bg-verdigris text-carbon' : 'text-mist hover:bg-graphite-hover'"
           @click="metricMode = 'bmi'"
         >
           BMI
         </button>
       </div>
-      <div class="flex gap-2">
+      <div
+        role="group"
+        aria-label="Range"
+        class="flex gap-1 rounded-sm bg-graphite p-1"
+      >
         <button
           type="button"
           class="rounded-sm px-3 py-1.5 text-label transition-colors duration-150"
-          :class="viewMode === 'daily' ? 'bg-verdigris text-carbon' : 'bg-graphite text-mist hover:bg-graphite-hover'"
+          :class="viewMode === 'daily' ? 'bg-verdigris text-carbon' : 'text-mist hover:bg-graphite-hover'"
           @click="viewMode = 'daily'"
         >
           Daily
@@ -142,7 +257,7 @@ const chartOptions = computed(() => ({
         <button
           type="button"
           class="rounded-sm px-3 py-1.5 text-label transition-colors duration-150"
-          :class="viewMode === 'weekly' ? 'bg-verdigris text-carbon' : 'bg-graphite text-mist hover:bg-graphite-hover'"
+          :class="viewMode === 'weekly' ? 'bg-verdigris text-carbon' : 'text-mist hover:bg-graphite-hover'"
           @click="viewMode = 'weekly'"
         >
           Weekly
@@ -160,7 +275,17 @@ const chartOptions = computed(() => ({
         v-else
         :data="chartData"
         :options="chartOptions"
+        :plugins="[bmiZonesPlugin]"
       />
     </div>
+    <p
+      v-if="hasData && metricMode === 'bmi'"
+      class="sr-only"
+    >
+      Background bands show the WHO BMI reference ranges: Overweight from {{ BMI_BOUNDARIES.overweight }}, Obese from {{ BMI_BOUNDARIES.obese }}.
+      <template v-if="latestBmiEntry?.bmi != null">
+        A dashed line marks your most recent reading: {{ latestBmiEntry.bmi.toFixed(1) }}, {{ category(latestBmiEntry.bmi) }}.
+      </template>
+    </p>
   </div>
 </template>
