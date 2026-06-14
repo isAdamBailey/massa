@@ -55,15 +55,17 @@ You can also deploy manually from the Forge dashboard or via the Forge CLI.
 
 1. **Sites → New Site** → your domain (e.g. `massa.example.com`).
 2. Choose **Nuxt** as the project type.
-3. Connect **GitHub** → `isAdamBailey/massa`, branch `main`.
-4. Enable **Push to deploy**.
-5. Set **Deploy Script** to:
+3. **Web directory:** leave blank (repo root). Do not set `frontend` — the deploy script builds from the monorepo root.
+4. **Server port:** use what Forge assigns (e.g. `3001` if `3000` is taken). Add `PORT=3001` to the site environment to match.
+5. Connect **GitHub** → `isAdamBailey/massa`, branch `main`.
+6. Enable **Push to deploy**.
+7. Set **Deploy Script** to:
 
    ```bash
    bash scripts/forge-deploy.sh
    ```
 
-6. **SSL** → obtain a Let's Encrypt certificate.
+8. **SSL** → obtain a Let's Encrypt certificate.
 
 The site clones the full monorepo to `/home/forge/massa.example.com`.
 

@@ -1,7 +1,16 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-cd "$FORGE_SITE_PATH"
+if [[ -f "$FORGE_SITE_PATH/scripts/forge-deploy.sh" ]]; then
+  ROOT="$FORGE_SITE_PATH"
+elif [[ -f "$FORGE_SITE_PATH/../scripts/forge-deploy.sh" ]]; then
+  ROOT="$(cd "$FORGE_SITE_PATH/.." && pwd)"
+else
+  echo "Cannot find repo root from FORGE_SITE_PATH=$FORGE_SITE_PATH" >&2
+  exit 1
+fi
+
+cd "$ROOT"
 
 git pull origin "$FORGE_SITE_BRANCH"
 
