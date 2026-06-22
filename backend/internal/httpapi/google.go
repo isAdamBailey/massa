@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"context"
 	"crypto/rand"
 	"encoding/base64"
 	"errors"
@@ -8,6 +9,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/google/uuid"
 	"golang.org/x/oauth2"
 
 	"github.com/isAdamBailey/massa/backend/internal/googlehealth"
@@ -213,7 +215,32 @@ func (h *Handler) googleSync(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// The backfill above pulls entries that are in Google but not in this
+	// app. Now push the other direction: manual entries that exist here but
+	// have never been synced up to Google.
+	h.pushUnsyncedToGoogle(r.Context(), user.ID)
+
 	w.WriteHeader(http.StatusOK)
+}
+
+// pushUnsyncedToGoogle pushes every manual weight entry that has not yet been
+// synced to the caller's Google Health account, best-effort. Each entry's
+// sync outcome is recorded via pushToGoogle. Entries already in Google
+// (source "google", or manual entries already marked synced) are skipped.
+func (h *Handler) pushUnsyncedToGoogle(ctx context.Context, userID uuid.UUID) {
+	if h.google == nil || h.google.Push == nil {
+		return
+	}
+
+	entries, err := h.weights.ListUnsynced(ctx, userID)
+	if err != nil {
+		log.Printf("httpapi: list unsynced weight entries: %v", err)
+		return
+	}
+
+	for _, entry := range entries {
+		h.pushToGoogle(ctx, userID, entry)
+	}
 }
 
 func clearGoogleOAuthStateCookie(w http.ResponseWriter, secure bool) {

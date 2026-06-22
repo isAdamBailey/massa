@@ -39,6 +39,7 @@ type Entry struct {
 type Querier interface {
 	CreateWeightEntry(ctx context.Context, arg db.CreateWeightEntryParams) (db.WeightEntry, error)
 	ListWeightEntries(ctx context.Context, arg db.ListWeightEntriesParams) ([]db.WeightEntry, error)
+	ListUnsyncedManualWeightEntries(ctx context.Context, userID pgtype.UUID) ([]db.WeightEntry, error)
 	GetWeightEntryByID(ctx context.Context, arg db.GetWeightEntryByIDParams) (db.WeightEntry, error)
 	GetLatestWeightEntry(ctx context.Context, userID pgtype.UUID) (db.WeightEntry, error)
 	UpdateWeightEntry(ctx context.Context, arg db.UpdateWeightEntryParams) (db.WeightEntry, error)
@@ -70,6 +71,27 @@ func (s *Service) List(ctx context.Context, userID uuid.UUID, from, to *time.Tim
 		From:   db.ToTimestamptzPtr(from),
 		To:     db.ToTimestamptzPtr(to),
 	})
+	if err != nil {
+		return nil, err
+	}
+
+	entries := make([]Entry, len(rows))
+	for i, row := range rows {
+		entry, err := fromRow(row)
+		if err != nil {
+			return nil, err
+		}
+		entries[i] = entry
+	}
+	return entries, nil
+}
+
+// ListUnsynced returns userID's manual weight entries that have not been
+// successfully synced to Google Health (status is unset, pending, or
+// failed), ordered oldest first. These are entries that exist in this app
+// but not (yet) in the user's Google Health account.
+func (s *Service) ListUnsynced(ctx context.Context, userID uuid.UUID) ([]Entry, error) {
+	rows, err := s.q.ListUnsyncedManualWeightEntries(ctx, db.ToUUID(userID))
 	if err != nil {
 		return nil, err
 	}

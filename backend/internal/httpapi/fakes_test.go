@@ -204,6 +204,20 @@ func (f *fakeWeightsService) List(_ context.Context, userID uuid.UUID, from, to 
 	return entries, nil
 }
 
+func (f *fakeWeightsService) ListUnsynced(_ context.Context, userID uuid.UUID) ([]weights.Entry, error) {
+	var entries []weights.Entry
+	for _, e := range f.entries {
+		if e.userID != userID || e.Source != "manual" {
+			continue
+		}
+		if e.GoogleSyncStatus != nil && *e.GoogleSyncStatus == "synced" {
+			continue
+		}
+		entries = append(entries, e.Entry)
+	}
+	return entries, nil
+}
+
 func (f *fakeWeightsService) Create(_ context.Context, userID uuid.UUID, weightKg float64, recordedAt time.Time) (weights.Entry, error) {
 	now := time.Now()
 	bmiValue, heightUsedCm := f.bmiAndHeight(weightKg)

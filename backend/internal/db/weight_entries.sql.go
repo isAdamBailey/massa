@@ -121,6 +121,46 @@ func (q *Queries) GetWeightEntryByID(ctx context.Context, arg GetWeightEntryByID
 	return i, err
 }
 
+const listUnsyncedManualWeightEntries = `-- name: ListUnsyncedManualWeightEntries :many
+SELECT id, user_id, weight_kg, recorded_at, bmi, height_used_cm, source, google_data_point_id, google_sync_status, created_at, updated_at FROM weight_entries
+WHERE user_id = $1
+  AND source = 'manual'
+  AND google_sync_status IS DISTINCT FROM 'synced'
+ORDER BY recorded_at ASC
+`
+
+func (q *Queries) ListUnsyncedManualWeightEntries(ctx context.Context, userID pgtype.UUID) ([]WeightEntry, error) {
+	rows, err := q.db.Query(ctx, listUnsyncedManualWeightEntries, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []WeightEntry
+	for rows.Next() {
+		var i WeightEntry
+		if err := rows.Scan(
+			&i.ID,
+			&i.UserID,
+			&i.WeightKg,
+			&i.RecordedAt,
+			&i.Bmi,
+			&i.HeightUsedCm,
+			&i.Source,
+			&i.GoogleDataPointID,
+			&i.GoogleSyncStatus,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listWeightEntries = `-- name: ListWeightEntries :many
 SELECT id, user_id, weight_kg, recorded_at, bmi, height_used_cm, source, google_data_point_id, google_sync_status, created_at, updated_at FROM weight_entries
 WHERE user_id = $1

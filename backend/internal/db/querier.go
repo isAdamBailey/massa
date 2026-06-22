@@ -31,6 +31,7 @@ type Querier interface {
 	GetWeightEntryByID(ctx context.Context, arg GetWeightEntryByIDParams) (WeightEntry, error)
 	IsEmailAllowed(ctx context.Context, email string) (bool, error)
 	ListAllowedEmails(ctx context.Context) ([]string, error)
+	ListUnsyncedManualWeightEntries(ctx context.Context, userID pgtype.UUID) ([]WeightEntry, error)
 	ListWeightEntries(ctx context.Context, arg ListWeightEntriesParams) ([]WeightEntry, error)
 	MarkMagicLinkTokenUsed(ctx context.Context, id pgtype.UUID) error
 	UpdateLastLoginAt(ctx context.Context, id pgtype.UUID) error

@@ -13,6 +13,13 @@ ORDER BY recorded_at ASC;
 -- name: GetWeightEntryByID :one
 SELECT * FROM weight_entries WHERE id = $1 AND user_id = $2;
 
+-- name: ListUnsyncedManualWeightEntries :many
+SELECT * FROM weight_entries
+WHERE user_id = $1
+  AND source = 'manual'
+  AND google_sync_status IS DISTINCT FROM 'synced'
+ORDER BY recorded_at ASC;
+
 -- name: GetLatestWeightEntry :one
 SELECT * FROM weight_entries
 WHERE user_id = $1

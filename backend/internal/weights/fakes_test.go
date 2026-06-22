@@ -54,6 +54,23 @@ func (f *fakeQuerier) ListWeightEntries(_ context.Context, arg db.ListWeightEntr
 	return rows, nil
 }
 
+func (f *fakeQuerier) ListUnsyncedManualWeightEntries(_ context.Context, userID pgtype.UUID) ([]db.WeightEntry, error) {
+	var rows []db.WeightEntry
+	for _, row := range f.entries {
+		if db.FromUUID(row.UserID) != db.FromUUID(userID) {
+			continue
+		}
+		if row.Source != "manual" {
+			continue
+		}
+		if row.GoogleSyncStatus != nil && *row.GoogleSyncStatus == "synced" {
+			continue
+		}
+		rows = append(rows, row)
+	}
+	return rows, nil
+}
+
 func (f *fakeQuerier) GetWeightEntryByID(_ context.Context, arg db.GetWeightEntryByIDParams) (db.WeightEntry, error) {
 	row, ok := f.entries[db.FromUUID(arg.ID)]
 	if !ok || db.FromUUID(row.UserID) != db.FromUUID(arg.UserID) {

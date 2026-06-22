@@ -18,6 +18,7 @@ import (
 // WeightsService is the subset of weights.Service used by the API.
 type WeightsService interface {
 	List(ctx context.Context, userID uuid.UUID, from, to *time.Time) ([]weights.Entry, error)
+	ListUnsynced(ctx context.Context, userID uuid.UUID) ([]weights.Entry, error)
 	Create(ctx context.Context, userID uuid.UUID, weightKg float64, recordedAt time.Time) (weights.Entry, error)
 	Update(ctx context.Context, userID, id uuid.UUID, weightKg float64, recordedAt time.Time) (weights.Entry, error)
 	UpdateGoogleSync(ctx context.Context, userID, id uuid.UUID, dataPointID *string, status string) (weights.Entry, error)

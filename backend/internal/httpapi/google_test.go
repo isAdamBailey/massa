@@ -10,6 +10,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
@@ -24,6 +25,7 @@ import (
 	"github.com/isAdamBailey/massa/backend/internal/googlehealth"
 	"github.com/isAdamBailey/massa/backend/internal/heights"
 	"github.com/isAdamBailey/massa/backend/internal/httpapi"
+	"github.com/isAdamBailey/massa/backend/internal/weights"
 )
 
 const testHealthUserID = "health-user-123"
@@ -253,6 +255,7 @@ type googleTestEnv struct {
 	syncMeta    *fakeSyncMetadataRepository
 	apiServer   *httptest.Server
 	pushLog     *googlePushLog
+	weights     *fakeWeightsService
 }
 
 func newGoogleTestEnv(t *testing.T) *googleTestEnv {
@@ -288,10 +291,11 @@ func newGoogleTestEnv(t *testing.T) *googleTestEnv {
 		Push:        push,
 	}
 
+	weightsSvc := newFakeWeightsService()
 	r := chi.NewRouter()
-	httpapi.NewHandler(svc, u, newFakeWeightsService(), false, "http://localhost:3000", google).Register(r)
+	httpapi.NewHandler(svc, u, weightsSvc, false, "http://localhost:3000", google).Register(r)
 
-	return &googleTestEnv{router: r, mailer: m, users: u, credentials: credentials, syncMeta: syncMeta, apiServer: apiServer, pushLog: pushLog}
+	return &googleTestEnv{router: r, mailer: m, users: u, credentials: credentials, syncMeta: syncMeta, apiServer: apiServer, pushLog: pushLog, weights: weightsSvc}
 }
 
 // rewriteClient returns an *http.Client whose requests are redirected to the
@@ -493,6 +497,59 @@ func TestGoogleSync_Success(t *testing.T) {
 	meta, err := env.syncMeta.GetOrCreate(t.Context(), user.ID)
 	require.NoError(t, err)
 	require.NotNil(t, meta.LastFullBackfillAt)
+}
+
+func TestGoogleSync_PushesUnsyncedManualEntries(t *testing.T) {
+	env := newGoogleTestEnv(t)
+	sessionCookie, csrfCookie := login(t, env.router, env.mailer, allowedEmail)
+
+	user, err := env.users.GetByEmail(t.Context(), allowedEmail)
+	require.NoError(t, err)
+	require.NoError(t, env.credentials.Save(t.Context(), user.ID, googlehealth.Credentials{
+		HealthUserID: testHealthUserID,
+		RefreshToken: "refresh-token",
+	}))
+
+	// A manual entry that exists in this app but has never been synced to
+	// Google (no sync status) should be pushed during sync.
+	unsynced := uuid.New()
+	env.weights.entries[unsynced] = weightEntryWithUser{
+		Entry: weights.Entry{
+			ID:         unsynced,
+			WeightKg:   72.5,
+			RecordedAt: time.Date(2024, 3, 1, 8, 0, 0, 0, time.UTC),
+			Source:     "manual",
+		},
+		userID: user.ID,
+	}
+
+	// A manual entry already marked synced must not be pushed again.
+	synced := uuid.New()
+	syncedStatus := "synced"
+	env.weights.entries[synced] = weightEntryWithUser{
+		Entry: weights.Entry{
+			ID:               synced,
+			WeightKg:         80,
+			RecordedAt:       time.Date(2024, 3, 2, 8, 0, 0, 0, time.UTC),
+			Source:           "manual",
+			GoogleSyncStatus: &syncedStatus,
+		},
+		userID: user.ID,
+	}
+
+	rec := doRequest(t, env.router, http.MethodPost, "/api/google/sync", "", []*http.Cookie{sessionCookie, csrfCookie}, map[string]string{
+		"X-CSRF-Token": csrfCookie.Value,
+	})
+	require.Equal(t, http.StatusOK, rec.Code)
+
+	upserts, _ := env.pushLog.snapshot()
+	require.Len(t, upserts, 1, "only the unsynced entry should be pushed")
+	assert.Equal(t, "users/me/dataTypes/weight/dataPoints/"+unsynced.String(), upserts[0].Name)
+	require.NotNil(t, upserts[0].Weight)
+	assert.InDelta(t, 72500.0, upserts[0].Weight.WeightGrams, 0.001)
+
+	// The pushed entry should now be recorded as synced.
+	assert.Equal(t, "synced", *env.weights.entries[unsynced].GoogleSyncStatus)
 }
 
 func TestGoogleRoutes_NotRegisteredWhenDisabled(t *testing.T) {
