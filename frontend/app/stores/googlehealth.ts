@@ -53,8 +53,17 @@ export const useGoogleHealthStore = defineStore('googlehealth', () => {
     try {
       await apiFetch('/api/google/sync', { method: 'POST' })
       await fetchStatus()
-    } catch {
-      error.value = 'Sync failed. Please try again.'
+    } catch (err) {
+      // A 409 with "reconnect_required" means the stored Google credentials
+      // have expired or been revoked. Flip to disconnected so the UI offers a
+      // reconnect button instead of a dead "Sync now".
+      const body = (err as { data?: { error?: string } })?.data
+      if (body?.error === 'reconnect_required') {
+        status.value = { connected: false }
+        error.value = 'Your Google Health connection has expired. Please reconnect.'
+      } else {
+        error.value = 'Sync failed. Please try again.'
+      }
     } finally {
       syncing.value = false
     }

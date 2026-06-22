@@ -15,6 +15,12 @@ import (
 // account.
 var ErrNotConnected = errors.New("google health account not connected")
 
+// ErrReauthRequired is returned when a user's stored Google credentials are
+// no longer valid — the OAuth refresh token has expired or been revoked
+// (Google responds with "invalid_grant"). The user must reconnect their
+// Google Health account to mint a fresh refresh token.
+var ErrReauthRequired = errors.New("google health reauthorization required")
+
 // Credentials holds a user's decrypted Google OAuth tokens and the Google
 // Health user ID used to address API requests.
 type Credentials struct {

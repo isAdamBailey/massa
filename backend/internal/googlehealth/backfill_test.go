@@ -105,6 +105,45 @@ func TestBackfillService_Run(t *testing.T) {
 	require.NotNil(t, meta.HeightSyncWatermark)
 }
 
+func TestBackfillService_RunReauthRequired(t *testing.T) {
+	// The token endpoint rejects the refresh token as Google does once it has
+	// expired or been revoked. The expired access token forces a refresh
+	// before any API call, so the failure surfaces from Run.
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/token" {
+			t.Fatalf("unexpected request to %s", r.URL.Path)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		_, _ = w.Write([]byte(`{"error":"invalid_grant","error_description":"Token has been expired or revoked."}`))
+	}))
+	defer srv.Close()
+
+	q := newFakeQuerier()
+	credRepo := googlehealth.NewPostgresCredentialsRepository(q, testKey(t))
+	syncRepo := googlehealth.NewPostgresSyncMetadataRepository(q)
+	oauthConfig := &oauth2.Config{
+		ClientID:     "test-client",
+		ClientSecret: "test-secret",
+		Endpoint:     oauth2.Endpoint{TokenURL: srv.URL + "/token"},
+	}
+
+	userID := uuid.New()
+	expired := time.Now().Add(-time.Hour)
+	require.NoError(t, credRepo.Save(context.Background(), userID, googlehealth.Credentials{
+		HealthUserID:         "health-user-123",
+		RefreshToken:         "revoked-refresh-token",
+		AccessToken:          "expired-access-token",
+		AccessTokenExpiresAt: &expired,
+	}))
+
+	heightResolver := heights.NewResolver(q)
+	service := googlehealth.NewBackfillServiceForTest(q, credRepo, syncRepo, heightResolver, oauthConfig, "http://unused.invalid")
+
+	err := service.Run(context.Background(), userID)
+	require.ErrorIs(t, err, googlehealth.ErrReauthRequired)
+}
+
 func TestBackfillService_RunNotConnected(t *testing.T) {
 	q := newFakeQuerier()
 	credRepo := googlehealth.NewPostgresCredentialsRepository(q, testKey(t))

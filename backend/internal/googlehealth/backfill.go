@@ -62,8 +62,17 @@ func NewBackfillServiceForTest(q Querier, credentials CredentialsRepository, syn
 
 // Run fetches the user's complete weight and height history from Google
 // Health and upserts it into weight_entries and height_entries, then
-// records the result in sync_metadata.
+// records the result in sync_metadata. If the stored credentials are no
+// longer valid it returns an error wrapping ErrReauthRequired.
 func (s *BackfillService) Run(ctx context.Context, userID uuid.UUID) error {
+	err := s.run(ctx, userID)
+	if err != nil && isReauthError(err) {
+		return errors.Join(ErrReauthRequired, err)
+	}
+	return err
+}
+
+func (s *BackfillService) run(ctx context.Context, userID uuid.UUID) error {
 	client, persist, err := newAuthorizedClient(ctx, s.credentials, s.oauthConfig, userID, s.apiBaseURL)
 	if err != nil {
 		return err

@@ -202,6 +202,11 @@ func (h *Handler) googleSync(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusConflict, "google account not connected")
 		return
 	}
+	if errors.Is(err, googlehealth.ErrReauthRequired) {
+		log.Printf("httpapi: google health sync: reauthorization required: %v", err)
+		writeError(w, http.StatusConflict, "reconnect_required")
+		return
+	}
 	if err != nil {
 		log.Printf("httpapi: google health sync: %v", err)
 		writeError(w, http.StatusBadGateway, "sync failed")

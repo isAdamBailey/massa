@@ -2,10 +2,29 @@ package googlehealth
 
 import (
 	"context"
+	"errors"
 
 	"github.com/google/uuid"
 	"golang.org/x/oauth2"
 )
+
+// isReauthError reports whether err is a Google OAuth token-endpoint failure
+// indicating the stored refresh token is no longer usable (expired or
+// revoked), so the user must reconnect. These surface from the lazy token
+// refresh performed during an API request, wrapped in *url.Error and our own
+// fmt.Errorf context, so we unwrap via errors.As.
+func isReauthError(err error) bool {
+	var retrieveErr *oauth2.RetrieveError
+	if !errors.As(err, &retrieveErr) {
+		return false
+	}
+	switch retrieveErr.ErrorCode {
+	case "invalid_grant", "invalid_client", "unauthorized_client":
+		return true
+	default:
+		return false
+	}
+}
 
 // newAuthorizedClient returns a Client authenticated as userID against
 // apiBaseURL, along with a function that persists any refreshed OAuth
