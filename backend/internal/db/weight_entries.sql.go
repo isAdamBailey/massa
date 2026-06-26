@@ -67,22 +67,21 @@ func (q *Queries) DeleteWeightEntry(ctx context.Context, arg DeleteWeightEntryPa
 	return result.RowsAffected(), nil
 }
 
-const existsManualWeightEntryForDate = `-- name: ExistsManualWeightEntryForDate :one
+const existsWeightEntryForDate = `-- name: ExistsWeightEntryForDate :one
 SELECT EXISTS (
     SELECT 1 FROM weight_entries
     WHERE user_id = $1
-      AND source = 'manual'
       AND recorded_at::date = $2::date
 ) AS exists
 `
 
-type ExistsManualWeightEntryForDateParams struct {
+type ExistsWeightEntryForDateParams struct {
 	UserID pgtype.UUID `json:"user_id"`
 	Date   pgtype.Date `json:"date"`
 }
 
-func (q *Queries) ExistsManualWeightEntryForDate(ctx context.Context, arg ExistsManualWeightEntryForDateParams) (bool, error) {
-	row := q.db.QueryRow(ctx, existsManualWeightEntryForDate, arg.UserID, arg.Date)
+func (q *Queries) ExistsWeightEntryForDate(ctx context.Context, arg ExistsWeightEntryForDateParams) (bool, error) {
+	row := q.db.QueryRow(ctx, existsWeightEntryForDate, arg.UserID, arg.Date)
 	var exists bool
 	err := row.Scan(&exists)
 	return exists, err

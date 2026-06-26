@@ -11,6 +11,26 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const existsHeightEntryForDate = `-- name: ExistsHeightEntryForDate :one
+SELECT EXISTS (
+    SELECT 1 FROM height_entries
+    WHERE user_id = $1
+      AND recorded_at::date = $2::date
+) AS exists
+`
+
+type ExistsHeightEntryForDateParams struct {
+	UserID pgtype.UUID `json:"user_id"`
+	Date   pgtype.Date `json:"date"`
+}
+
+func (q *Queries) ExistsHeightEntryForDate(ctx context.Context, arg ExistsHeightEntryForDateParams) (bool, error) {
+	row := q.db.QueryRow(ctx, existsHeightEntryForDate, arg.UserID, arg.Date)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
+}
+
 const getLatestHeightEntry = `-- name: GetLatestHeightEntry :one
 SELECT id, user_id, height_cm, recorded_at, source, google_data_point_id, created_at FROM height_entries
 WHERE user_id = $1

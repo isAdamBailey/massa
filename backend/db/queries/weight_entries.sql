@@ -41,11 +41,10 @@ SET google_data_point_id = $3, google_sync_status = $4
 WHERE id = $1 AND user_id = $2
 RETURNING *;
 
--- name: ExistsManualWeightEntryForDate :one
+-- name: ExistsWeightEntryForDate :one
 SELECT EXISTS (
     SELECT 1 FROM weight_entries
     WHERE user_id = $1
-      AND source = 'manual'
       AND recorded_at::date = sqlc.arg(date)::date
 ) AS exists;
 

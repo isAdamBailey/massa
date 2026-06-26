@@ -178,6 +178,65 @@ func TestBackfillService_Run_SkipsWeightWhenManualEntryExistsForDate(t *testing.
 	assert.True(t, manualStillPresent)
 }
 
+func TestBackfillService_Run_SkipsSecondGoogleWeightEntryForSameDate(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch r.URL.Path {
+		case "/users/me/dataTypes/weight/dataPoints":
+			// Two weigh-ins recorded by Google on the same calendar day; only
+			// the first one encountered should be kept.
+			_, _ = w.Write([]byte(`{
+				"dataPoints": [
+					{
+						"name": "users/health-user-123/dataTypes/weight/dataPoints/dp-1",
+						"weight": {"weightGrams": 70000, "sampleTime": {"physicalTime": "2024-01-01T08:00:00Z"}}
+					},
+					{
+						"name": "users/health-user-123/dataTypes/weight/dataPoints/dp-2",
+						"weight": {"weightGrams": 70500, "sampleTime": {"physicalTime": "2024-01-01T20:00:00Z"}}
+					}
+				]
+			}`))
+		case "/users/me/dataTypes/height/dataPoints":
+			_, _ = w.Write([]byte(`{"dataPoints": []}`))
+		default:
+			t.Fatalf("unexpected request to %s", r.URL.Path)
+		}
+	}))
+	defer srv.Close()
+
+	q := newFakeQuerier()
+	credRepo := googlehealth.NewPostgresCredentialsRepository(q, testKey(t))
+	syncRepo := googlehealth.NewPostgresSyncMetadataRepository(q)
+	oauthConfig := &oauth2.Config{
+		ClientID:     "test-client",
+		ClientSecret: "test-secret",
+		Endpoint:     oauth2.Endpoint{TokenURL: "http://unused.invalid/token"},
+	}
+
+	userID := uuid.New()
+	expiry := time.Now().Add(time.Hour)
+	require.NoError(t, credRepo.Save(context.Background(), userID, googlehealth.Credentials{
+		HealthUserID:         "health-user-123",
+		RefreshToken:         "refresh-token",
+		AccessToken:          "access-token",
+		AccessTokenExpiresAt: &expiry,
+	}))
+
+	heightResolver := heights.NewResolver(q)
+	service := googlehealth.NewBackfillServiceForTest(q, credRepo, syncRepo, heightResolver, oauthConfig, srv.URL)
+
+	require.NoError(t, service.Run(context.Background(), userID))
+
+	weightEntries := q.weightEntries[userID]
+	require.Len(t, weightEntries, 1, "only the first weigh-in of the day should be kept")
+
+	_, firstKept := weightEntries["dp-1"]
+	assert.True(t, firstKept)
+	_, secondSkipped := weightEntries["dp-2"]
+	assert.False(t, secondSkipped, "second weigh-in for an already-synced day should be skipped")
+}
+
 func TestBackfillService_RunReauthRequired(t *testing.T) {
 	// The token endpoint rejects the refresh token as Google does once it has
 	// expired or been revoked. The expired access token forces a refresh
