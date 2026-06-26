@@ -103,12 +103,20 @@ func (fakeGoogleQuerier) UpdateSyncWatermarks(context.Context, db.UpdateSyncWate
 	return errNotImplemented
 }
 
+func (fakeGoogleQuerier) ExistsWeightEntryForDate(context.Context, db.ExistsWeightEntryForDateParams) (bool, error) {
+	return false, nil
+}
+
 func (fakeGoogleQuerier) UpsertWeightEntryByGoogleID(_ context.Context, arg db.UpsertWeightEntryByGoogleIDParams) (db.WeightEntry, error) {
 	return db.WeightEntry{UserID: arg.UserID, WeightKg: arg.WeightKg, RecordedAt: arg.RecordedAt, GoogleDataPointID: arg.GoogleDataPointID}, nil
 }
 
 func (fakeGoogleQuerier) UpsertWeightEntryByRecordedAt(_ context.Context, arg db.UpsertWeightEntryByRecordedAtParams) (db.WeightEntry, error) {
 	return db.WeightEntry{UserID: arg.UserID, WeightKg: arg.WeightKg, RecordedAt: arg.RecordedAt}, nil
+}
+
+func (fakeGoogleQuerier) ExistsHeightEntryForDate(context.Context, db.ExistsHeightEntryForDateParams) (bool, error) {
+	return false, nil
 }
 
 func (fakeGoogleQuerier) UpsertHeightEntryByGoogleID(_ context.Context, arg db.UpsertHeightEntryByGoogleIDParams) (db.HeightEntry, error) {

@@ -1,0 +1,2 @@
+-- This migration deletes duplicate rows; deleted data cannot be restored,
+-- so there is nothing to revert.

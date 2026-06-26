@@ -20,6 +20,8 @@ type Querier interface {
 	DeleteGoogleOAuthCredentials(ctx context.Context, userID pgtype.UUID) error
 	DeleteSession(ctx context.Context, id pgtype.UUID) error
 	DeleteWeightEntry(ctx context.Context, arg DeleteWeightEntryParams) (int64, error)
+	ExistsHeightEntryForDate(ctx context.Context, arg ExistsHeightEntryForDateParams) (bool, error)
+	ExistsWeightEntryForDate(ctx context.Context, arg ExistsWeightEntryForDateParams) (bool, error)
 	GetGoogleOAuthCredentialsByUserID(ctx context.Context, userID pgtype.UUID) (GoogleOauthCredential, error)
 	GetLatestHeightEntry(ctx context.Context, userID pgtype.UUID) (HeightEntry, error)
 	GetLatestWeightEntry(ctx context.Context, userID pgtype.UUID) (WeightEntry, error)

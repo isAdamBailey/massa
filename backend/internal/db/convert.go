@@ -43,6 +43,12 @@ func ToTimestamptzPtr(t *time.Time) pgtype.Timestamptz {
 	return pgtype.Timestamptz{Time: *t, Valid: true}
 }
 
+// ToDate converts a time.Time to the pgtype representation used by
+// sqlc-generated code.
+func ToDate(t time.Time) pgtype.Date {
+	return pgtype.Date{Time: t, Valid: true}
+}
+
 // ToNumeric converts a float64 to the pgtype representation used by
 // sqlc-generated code.
 func ToNumeric(f float64) (pgtype.Numeric, error) {

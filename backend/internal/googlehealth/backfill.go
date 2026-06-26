@@ -130,6 +130,17 @@ func (s *BackfillService) syncWeight(ctx context.Context, client *Client, userID
 				return fmt.Errorf("parse sample time %q: %w", dp.Weight.SampleTime.PhysicalTime, err)
 			}
 
+			exists, err := s.q.ExistsWeightEntryForDate(ctx, db.ExistsWeightEntryForDateParams{
+				UserID: db.ToUUID(userID),
+				Date:   db.ToDate(recordedAt),
+			})
+			if err != nil {
+				return fmt.Errorf("check weight entry for date: %w", err)
+			}
+			if exists {
+				continue
+			}
+
 			weightKgFloat := dp.Weight.WeightGrams / 1000
 			weightKg, err := db.ToNumeric(weightKgFloat)
 			if err != nil {
@@ -194,6 +205,17 @@ func (s *BackfillService) syncHeight(ctx context.Context, client *Client, userID
 			recordedAt, err := time.Parse(time.RFC3339, dp.Height.SampleTime.PhysicalTime)
 			if err != nil {
 				return fmt.Errorf("parse sample time %q: %w", dp.Height.SampleTime.PhysicalTime, err)
+			}
+
+			exists, err := s.q.ExistsHeightEntryForDate(ctx, db.ExistsHeightEntryForDateParams{
+				UserID: db.ToUUID(userID),
+				Date:   db.ToDate(recordedAt),
+			})
+			if err != nil {
+				return fmt.Errorf("check height entry for date: %w", err)
+			}
+			if exists {
+				continue
 			}
 
 			heightMM, err := strconv.ParseInt(dp.Height.HeightMillimeters, 10, 64)

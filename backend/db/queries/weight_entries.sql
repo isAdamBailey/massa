@@ -41,6 +41,13 @@ SET google_data_point_id = $3, google_sync_status = $4
 WHERE id = $1 AND user_id = $2
 RETURNING *;
 
+-- name: ExistsWeightEntryForDate :one
+SELECT EXISTS (
+    SELECT 1 FROM weight_entries
+    WHERE user_id = $1
+      AND recorded_at::date = sqlc.arg(date)::date
+) AS exists;
+
 -- name: UpsertWeightEntryByGoogleID :one
 INSERT INTO weight_entries (user_id, weight_kg, recorded_at, bmi, height_used_cm, source, google_data_point_id)
 VALUES ($1, $2, $3, $4, $5, 'google', $6)

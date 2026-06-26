@@ -4,6 +4,13 @@ WHERE user_id = $1
 ORDER BY recorded_at DESC
 LIMIT 1;
 
+-- name: ExistsHeightEntryForDate :one
+SELECT EXISTS (
+    SELECT 1 FROM height_entries
+    WHERE user_id = $1
+      AND recorded_at::date = sqlc.arg(date)::date
+) AS exists;
+
 -- name: UpsertHeightEntryByGoogleID :one
 INSERT INTO height_entries (user_id, height_cm, recorded_at, source, google_data_point_id)
 VALUES ($1, $2, $3, 'google', $4)
