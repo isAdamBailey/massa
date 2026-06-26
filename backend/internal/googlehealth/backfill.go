@@ -130,6 +130,17 @@ func (s *BackfillService) syncWeight(ctx context.Context, client *Client, userID
 				return fmt.Errorf("parse sample time %q: %w", dp.Weight.SampleTime.PhysicalTime, err)
 			}
 
+			hasManual, err := s.q.ExistsManualWeightEntryForDate(ctx, db.ExistsManualWeightEntryForDateParams{
+				UserID: db.ToUUID(userID),
+				Date:   db.ToDate(recordedAt),
+			})
+			if err != nil {
+				return fmt.Errorf("check manual weight entry for date: %w", err)
+			}
+			if hasManual {
+				continue
+			}
+
 			weightKgFloat := dp.Weight.WeightGrams / 1000
 			weightKg, err := db.ToNumeric(weightKgFloat)
 			if err != nil {

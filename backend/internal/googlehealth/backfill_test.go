@@ -105,6 +105,79 @@ func TestBackfillService_Run(t *testing.T) {
 	require.NotNil(t, meta.HeightSyncWatermark)
 }
 
+func TestBackfillService_Run_SkipsWeightWhenManualEntryExistsForDate(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch r.URL.Path {
+		case "/users/me/dataTypes/weight/dataPoints":
+			_, _ = w.Write([]byte(`{
+				"dataPoints": [
+					{
+						"name": "users/health-user-123/dataTypes/weight/dataPoints/dp-1",
+						"weight": {"weightGrams": 70000, "sampleTime": {"physicalTime": "2024-01-01T08:00:00Z"}}
+					},
+					{
+						"weight": {"weightGrams": 71500, "sampleTime": {"physicalTime": "2024-01-02T08:00:00Z"}}
+					}
+				]
+			}`))
+		case "/users/me/dataTypes/height/dataPoints":
+			_, _ = w.Write([]byte(`{"dataPoints": []}`))
+		default:
+			t.Fatalf("unexpected request to %s", r.URL.Path)
+		}
+	}))
+	defer srv.Close()
+
+	q := newFakeQuerier()
+	credRepo := googlehealth.NewPostgresCredentialsRepository(q, testKey(t))
+	syncRepo := googlehealth.NewPostgresSyncMetadataRepository(q)
+	oauthConfig := &oauth2.Config{
+		ClientID:     "test-client",
+		ClientSecret: "test-secret",
+		Endpoint:     oauth2.Endpoint{TokenURL: "http://unused.invalid/token"},
+	}
+
+	userID := uuid.New()
+	expiry := time.Now().Add(time.Hour)
+	require.NoError(t, credRepo.Save(context.Background(), userID, googlehealth.Credentials{
+		HealthUserID:         "health-user-123",
+		RefreshToken:         "refresh-token",
+		AccessToken:          "access-token",
+		AccessTokenExpiresAt: &expiry,
+	}))
+
+	// A manual entry already exists for 2024-01-01; the Google entry for
+	// that same day should be skipped rather than added as a duplicate.
+	manualRecordedAt, err := time.Parse(time.RFC3339, "2024-01-01T20:00:00Z")
+	require.NoError(t, err)
+	weightKg, err := db.ToNumeric(69.0)
+	require.NoError(t, err)
+	q.weightEntries[userID] = map[string]db.WeightEntry{
+		"manual-2024-01-01": {
+			ID:         db.ToUUID(uuid.New()),
+			UserID:     db.ToUUID(userID),
+			WeightKg:   weightKg,
+			RecordedAt: db.ToTimestamptz(manualRecordedAt),
+			Source:     "manual",
+		},
+	}
+
+	heightResolver := heights.NewResolver(q)
+	service := googlehealth.NewBackfillServiceForTest(q, credRepo, syncRepo, heightResolver, oauthConfig, srv.URL)
+
+	require.NoError(t, service.Run(context.Background(), userID))
+
+	weightEntries := q.weightEntries[userID]
+	require.Len(t, weightEntries, 2, "manual entry plus the one Google entry not shadowed by it")
+
+	_, dpSkipped := weightEntries["dp-1"]
+	assert.False(t, dpSkipped, "Google entry for the day with an existing manual entry should be skipped")
+
+	_, manualStillPresent := weightEntries["manual-2024-01-01"]
+	assert.True(t, manualStillPresent)
+}
+
 func TestBackfillService_RunReauthRequired(t *testing.T) {
 	// The token endpoint rejects the refresh token as Google does once it has
 	// expired or been revoked. The expired access token forces a refresh

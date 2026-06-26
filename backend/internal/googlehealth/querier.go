@@ -17,6 +17,7 @@ type Querier interface {
 	UpsertSyncMetadata(ctx context.Context, userID pgtype.UUID) (db.SyncMetadatum, error)
 	UpdateSyncWatermarks(ctx context.Context, arg db.UpdateSyncWatermarksParams) error
 
+	ExistsManualWeightEntryForDate(ctx context.Context, arg db.ExistsManualWeightEntryForDateParams) (bool, error)
 	UpsertWeightEntryByGoogleID(ctx context.Context, arg db.UpsertWeightEntryByGoogleIDParams) (db.WeightEntry, error)
 	UpsertWeightEntryByRecordedAt(ctx context.Context, arg db.UpsertWeightEntryByRecordedAtParams) (db.WeightEntry, error)
 	UpsertHeightEntryByGoogleID(ctx context.Context, arg db.UpsertHeightEntryByGoogleIDParams) (db.HeightEntry, error)

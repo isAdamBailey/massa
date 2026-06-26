@@ -108,6 +108,15 @@ func (f *fakeQuerier) UpdateSyncWatermarks(_ context.Context, arg db.UpdateSyncW
 	return nil
 }
 
+func (f *fakeQuerier) ExistsManualWeightEntryForDate(_ context.Context, arg db.ExistsManualWeightEntryForDateParams) (bool, error) {
+	for _, entry := range f.weightEntries[db.FromUUID(arg.UserID)] {
+		if entry.Source == "manual" && entry.RecordedAt.Time.Format("2006-01-02") == arg.Date.Time.Format("2006-01-02") {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
 func (f *fakeQuerier) UpsertWeightEntryByGoogleID(_ context.Context, arg db.UpsertWeightEntryByGoogleIDParams) (db.WeightEntry, error) {
 	return f.upsertWeightEntry(arg.UserID, *arg.GoogleDataPointID, arg.WeightKg, arg.RecordedAt, arg.Bmi, arg.HeightUsedCm, arg.GoogleDataPointID)
 }
