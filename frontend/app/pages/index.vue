@@ -3,13 +3,14 @@ import type { WeightEntry } from '~/stores/weights'
 
 const auth = useAuthStore()
 const weights = useWeightsStore()
+const activeEnergy = useActiveEnergyStore()
 const settings = useSettingsStore()
 const google = useGoogleHealthStore()
-const { category, kgToLb } = useBmi()
+const { kgToLb } = useBmi()
 
 type RangePreset = '7d' | '30d' | '90d' | '1y' | 'all'
 type ChartViewMode = 'daily' | 'weekly'
-type ChartMetricMode = 'weight' | 'bmi'
+type ChartMetricMode = 'weight' | 'bmi' | 'energy'
 
 const rangePreset = ref<RangePreset>('90d')
 const chartViewMode = ref<ChartViewMode>('weekly')
@@ -31,18 +32,38 @@ const presetDays: Record<RangePreset, number | null> = {
   all: null
 }
 
-async function loadEntries() {
+function currentRangeFrom(): string | undefined {
   const days = presetDays[rangePreset.value]
   if (days === null) {
-    await weights.fetchEntries()
-    return
+    return undefined
   }
   const from = new Date()
   from.setDate(from.getDate() - days)
-  await weights.fetchEntries({ from: from.toISOString() })
+  return from.toISOString()
 }
 
-const { currentWeekAverage } = useWeeklyAverages()
+async function loadEntries() {
+  const from = currentRangeFrom()
+  await Promise.all([
+    weights.fetchEntries(from ? { from } : {}),
+    activeEnergy.fetchEntries(from ? { from } : {})
+  ])
+}
+
+const { computeWeightTrend, computeEnergyTrend, computeVerdict, verdictLabel } = useWeekVerdict()
+
+/**
+ * Reruns the Google sync whenever it isn't already in flight, best-effort,
+ * then refreshes local data so newly-synced entries (e.g. active energy)
+ * show up without the user having to visit Settings and click "Sync now".
+ */
+async function syncWithGoogleAfterSave() {
+  if (!google.status.connected || google.syncing) {
+    return
+  }
+  await google.sync()
+  await loadEntries()
+}
 
 /**
  * Google sync can backfill a data point for a timestamp that already has a
@@ -75,16 +96,8 @@ const latestWeightDisplay = computed(() => {
   return weight.toFixed(1)
 })
 
-const weeklyAverageDisplay = computed(() => {
-  const average = currentWeekAverage(displayEntries.value)
-  if (!average) {
-    return null
-  }
-  const weight = settings.settings.unitsPreference === 'imperial'
-    ? kgToLb(average.average)
-    : average.average
-  return weight.toFixed(1)
-})
+const weekVerdict = computed(() => computeVerdict(computeWeightTrend(displayEntries.value), computeEnergyTrend(activeEnergy.entries)))
+const weekVerdictLabel = computed(() => verdictLabel(weekVerdict.value))
 
 onMounted(async () => {
   await Promise.all([loadEntries(), settings.fetchSettings(), google.fetchStatus()])
@@ -116,8 +129,24 @@ function formatDate(value?: string) {
       </p>
 
       <section
+        v-if="google.reconnectRequired"
+        class="flex flex-wrap items-center justify-between gap-3 rounded-md bg-slate p-4"
+      >
+        <p class="text-body text-mist">
+          Google Health needs to reconnect to keep syncing your data.
+        </p>
+        <button
+          type="button"
+          class="shrink-0 rounded-sm bg-verdigris px-4 py-2 text-label text-carbon transition-colors duration-150 hover:bg-verdigris-hover"
+          @click="google.connect"
+        >
+          Reconnect
+        </button>
+      </section>
+
+      <section
         v-if="latestEntry"
-        class="grid grid-cols-2 gap-x-6 gap-y-5 rounded-md bg-slate p-5 sm:grid-cols-4"
+        class="grid grid-cols-2 gap-x-6 gap-y-5 rounded-md bg-slate p-5"
       >
         <div>
           <dt class="text-label text-fog">
@@ -127,28 +156,54 @@ function formatDate(value?: string) {
             {{ latestWeightDisplay }}<span class="text-label font-sans text-fog"> {{ weightUnitLabel }}</span>
           </dd>
         </div>
-        <div v-if="weeklyAverageDisplay">
+        <div>
           <dt class="text-label text-fog">
-            This week's avg
+            This week
           </dt>
-          <dd class="text-display font-mono tabular-nums text-mist">
-            {{ weeklyAverageDisplay }}<span class="text-label font-sans text-fog"> {{ weightUnitLabel }}</span>
-          </dd>
-        </div>
-        <div v-if="latestEntry.bmi">
-          <dt class="text-label text-fog">
-            BMI
-          </dt>
-          <dd class="text-display font-mono tabular-nums text-mist">
-            {{ latestEntry.bmi.toFixed(1) }}
-          </dd>
-        </div>
-        <div v-if="latestEntry.bmi">
-          <dt class="text-label text-fog">
-            Category
-          </dt>
-          <dd class="text-title font-sans text-mist">
-            {{ category(latestEntry.bmi) }}
+          <dd class="flex items-center gap-2 pt-1">
+            <svg
+              v-if="weekVerdict === 'better'"
+              class="h-6 w-6 shrink-0 text-verdigris"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2.5"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+            >
+              <path d="M12 19V5M5 12l7-7 7 7" />
+            </svg>
+            <svg
+              v-else-if="weekVerdict === 'worse'"
+              class="h-6 w-6 shrink-0 text-fog"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2.5"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+            >
+              <path d="M12 5v14M19 12l-7 7-7-7" />
+            </svg>
+            <svg
+              v-else
+              class="h-6 w-6 shrink-0 text-fog"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2.5"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+            >
+              <path d="M5 12h14" />
+            </svg>
+            <span
+              class="text-title font-sans"
+              :class="weekVerdict === 'better' ? 'text-verdigris' : 'text-mist'"
+            >{{ weekVerdictLabel }}</span>
           </dd>
         </div>
       </section>
@@ -157,7 +212,7 @@ function formatDate(value?: string) {
         <h2 class="text-title font-sans">
           Add weight entry
         </h2>
-        <WeightEntryForm />
+        <WeightEntryForm @saved="syncWithGoogleAfterSave" />
       </section>
 
       <section class="space-y-4 rounded-md bg-slate p-5">
@@ -175,7 +230,7 @@ function formatDate(value?: string) {
         </div>
 
         <p
-          v-if="weights.loading"
+          v-if="weights.loading || activeEnergy.loading"
           class="text-body text-fog"
         >
           Loading…
@@ -185,6 +240,7 @@ function formatDate(value?: string) {
           v-model:view-mode="chartViewMode"
           v-model:metric-mode="chartMetricMode"
           :entries="displayEntries"
+          :active-energy-entries="activeEnergy.entries"
           :units-preference="settings.settings.unitsPreference"
         />
 

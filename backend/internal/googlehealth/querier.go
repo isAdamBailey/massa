@@ -24,4 +24,6 @@ type Querier interface {
 	ExistsHeightEntryForDate(ctx context.Context, arg db.ExistsHeightEntryForDateParams) (bool, error)
 	UpsertHeightEntryByGoogleID(ctx context.Context, arg db.UpsertHeightEntryByGoogleIDParams) (db.HeightEntry, error)
 	UpsertHeightEntryByRecordedAt(ctx context.Context, arg db.UpsertHeightEntryByRecordedAtParams) (db.HeightEntry, error)
+
+	UpsertActiveEnergyByDay(ctx context.Context, arg db.UpsertActiveEnergyByDayParams) (db.ActiveEnergyEntry, error)
 }

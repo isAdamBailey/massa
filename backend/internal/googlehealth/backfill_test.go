@@ -42,6 +42,17 @@ func TestBackfillService_Run(t *testing.T) {
 					}
 				]
 			}`))
+		case "/users/me/dataTypes/active-energy-burned/dataPoints":
+			_, _ = w.Write([]byte(`{
+				"dataPoints": [
+					{
+						"activeEnergyBurned": {"kcal": 200, "interval": {"startTime": "2024-01-01T08:00:00Z", "endTime": "2024-01-01T09:00:00Z"}}
+					},
+					{
+						"activeEnergyBurned": {"kcal": 150, "interval": {"startTime": "2024-01-01T18:00:00Z", "endTime": "2024-01-01T19:00:00Z"}}
+					}
+				]
+			}`))
 		default:
 			t.Fatalf("unexpected request to %s", r.URL.Path)
 		}
@@ -98,11 +109,20 @@ func TestBackfillService_Run(t *testing.T) {
 		assert.InDelta(t, 180.0, heightCm, 0.001)
 	}
 
+	activeEnergyEntries := q.activeEnergyEntries[userID]
+	require.Len(t, activeEnergyEntries, 1, "both intervals fall on the same day and should be summed into one entry")
+	for _, entry := range activeEnergyEntries {
+		kcal, err := db.FromNumeric(entry.ActiveEnergyKcal)
+		require.NoError(t, err)
+		assert.InDelta(t, 350.0, kcal, 0.001)
+	}
+
 	meta, err := syncRepo.GetOrCreate(context.Background(), userID)
 	require.NoError(t, err)
 	require.NotNil(t, meta.LastFullBackfillAt)
 	require.NotNil(t, meta.WeightSyncWatermark)
 	require.NotNil(t, meta.HeightSyncWatermark)
+	require.NotNil(t, meta.ActiveEnergySyncWatermark)
 }
 
 func TestBackfillService_Run_SkipsWeightWhenManualEntryExistsForDate(t *testing.T) {
@@ -122,6 +142,8 @@ func TestBackfillService_Run_SkipsWeightWhenManualEntryExistsForDate(t *testing.
 				]
 			}`))
 		case "/users/me/dataTypes/height/dataPoints":
+			_, _ = w.Write([]byte(`{"dataPoints": []}`))
+		case "/users/me/dataTypes/active-energy-burned/dataPoints":
 			_, _ = w.Write([]byte(`{"dataPoints": []}`))
 		default:
 			t.Fatalf("unexpected request to %s", r.URL.Path)
@@ -198,6 +220,8 @@ func TestBackfillService_Run_SkipsSecondGoogleWeightEntryForSameDate(t *testing.
 				]
 			}`))
 		case "/users/me/dataTypes/height/dataPoints":
+			_, _ = w.Write([]byte(`{"dataPoints": []}`))
+		case "/users/me/dataTypes/active-energy-burned/dataPoints":
 			_, _ = w.Write([]byte(`{"dataPoints": []}`))
 		default:
 			t.Fatalf("unexpected request to %s", r.URL.Path)

@@ -11,10 +11,11 @@ import (
 
 // SyncMetadata tracks the progress of a user's Google Health sync.
 type SyncMetadata struct {
-	LastFullBackfillAt    *time.Time
-	LastIncrementalSyncAt *time.Time
-	WeightSyncWatermark   *time.Time
-	HeightSyncWatermark   *time.Time
+	LastFullBackfillAt        *time.Time
+	LastIncrementalSyncAt     *time.Time
+	WeightSyncWatermark       *time.Time
+	HeightSyncWatermark       *time.Time
+	ActiveEnergySyncWatermark *time.Time
 }
 
 // SyncMetadataRepository stores per-user Google Health sync progress.
@@ -45,20 +46,22 @@ func (r *PostgresSyncMetadataRepository) GetOrCreate(ctx context.Context, userID
 		return SyncMetadata{}, err
 	}
 	return SyncMetadata{
-		LastFullBackfillAt:    db.FromTimestamptz(row.LastFullBackfillAt),
-		LastIncrementalSyncAt: db.FromTimestamptz(row.LastIncrementalSyncAt),
-		WeightSyncWatermark:   db.FromTimestamptz(row.WeightSyncWatermark),
-		HeightSyncWatermark:   db.FromTimestamptz(row.HeightSyncWatermark),
+		LastFullBackfillAt:        db.FromTimestamptz(row.LastFullBackfillAt),
+		LastIncrementalSyncAt:     db.FromTimestamptz(row.LastIncrementalSyncAt),
+		WeightSyncWatermark:       db.FromTimestamptz(row.WeightSyncWatermark),
+		HeightSyncWatermark:       db.FromTimestamptz(row.HeightSyncWatermark),
+		ActiveEnergySyncWatermark: db.FromTimestamptz(row.ActiveEnergySyncWatermark),
 	}, nil
 }
 
 // Update implements SyncMetadataRepository.
 func (r *PostgresSyncMetadataRepository) Update(ctx context.Context, userID uuid.UUID, meta SyncMetadata) error {
 	return r.q.UpdateSyncWatermarks(ctx, db.UpdateSyncWatermarksParams{
-		UserID:                db.ToUUID(userID),
-		LastFullBackfillAt:    db.ToTimestamptzPtr(meta.LastFullBackfillAt),
-		LastIncrementalSyncAt: db.ToTimestamptzPtr(meta.LastIncrementalSyncAt),
-		WeightSyncWatermark:   db.ToTimestamptzPtr(meta.WeightSyncWatermark),
-		HeightSyncWatermark:   db.ToTimestamptzPtr(meta.HeightSyncWatermark),
+		UserID:                    db.ToUUID(userID),
+		LastFullBackfillAt:        db.ToTimestamptzPtr(meta.LastFullBackfillAt),
+		LastIncrementalSyncAt:     db.ToTimestamptzPtr(meta.LastIncrementalSyncAt),
+		WeightSyncWatermark:       db.ToTimestamptzPtr(meta.WeightSyncWatermark),
+		HeightSyncWatermark:       db.ToTimestamptzPtr(meta.HeightSyncWatermark),
+		ActiveEnergySyncWatermark: db.ToTimestamptzPtr(meta.ActiveEnergySyncWatermark),
 	})
 }

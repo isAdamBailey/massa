@@ -48,12 +48,28 @@ type Height struct {
 	SampleTime        ObservationSampleTime `json:"sampleTime"`
 }
 
+// ObservationTimeInterval is the time range over which an interval data
+// point (such as active energy burned) was observed.
+type ObservationTimeInterval struct {
+	StartTime string `json:"startTime"`
+	EndTime   string `json:"endTime"`
+}
+
+// ActiveEnergyBurned is energy burned as part of an activity, excluding
+// basal energy burn, over an observed interval.
+type ActiveEnergyBurned struct {
+	Interval ObservationTimeInterval `json:"interval"`
+	Kcal     float64                 `json:"kcal"`
+}
+
 // DataPoint is a single recorded health metric. Only the fields relevant to
-// weight and height are modeled; other data types are left unparsed.
+// weight, height, and active energy burned are modeled; other data types
+// are left unparsed.
 type DataPoint struct {
-	Name   string  `json:"name,omitempty"`
-	Weight *Weight `json:"weight,omitempty"`
-	Height *Height `json:"height,omitempty"`
+	Name               string              `json:"name,omitempty"`
+	Weight             *Weight             `json:"weight,omitempty"`
+	Height             *Height             `json:"height,omitempty"`
+	ActiveEnergyBurned *ActiveEnergyBurned `json:"activeEnergyBurned,omitempty"`
 }
 
 // ListDataPointsResponse is the response from dataPoints.list.
@@ -106,6 +122,12 @@ func (c *Client) ListWeightDataPoints(ctx context.Context, healthUserID, pageTok
 // an empty pageToken for the first page.
 func (c *Client) ListHeightDataPoints(ctx context.Context, healthUserID, pageToken string) (ListDataPointsResponse, error) {
 	return c.listDataPoints(ctx, healthUserID, "height", pageToken)
+}
+
+// ListActiveEnergyDataPoints fetches one page of the user's active energy
+// burned history. Pass an empty pageToken for the first page.
+func (c *Client) ListActiveEnergyDataPoints(ctx context.Context, healthUserID, pageToken string) (ListDataPointsResponse, error) {
+	return c.listDataPoints(ctx, healthUserID, "active-energy-burned", pageToken)
 }
 
 func (c *Client) listDataPoints(ctx context.Context, healthUserID, dataType, pageToken string) (ListDataPointsResponse, error) {

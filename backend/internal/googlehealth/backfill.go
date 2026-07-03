@@ -84,6 +84,9 @@ func (s *BackfillService) run(ctx context.Context, userID uuid.UUID) error {
 	if err := s.syncWeight(ctx, client, userID, "me"); err != nil {
 		return fmt.Errorf("sync weight: %w", err)
 	}
+	if err := s.syncActiveEnergy(ctx, client, userID, "me"); err != nil {
+		return fmt.Errorf("sync active energy: %w", err)
+	}
 
 	if err := persist(ctx); err != nil {
 		return fmt.Errorf("persist refreshed token: %w", err)
@@ -98,6 +101,7 @@ func (s *BackfillService) run(ctx context.Context, userID uuid.UUID) error {
 	meta.LastIncrementalSyncAt = &now
 	meta.WeightSyncWatermark = &now
 	meta.HeightSyncWatermark = &now
+	meta.ActiveEnergySyncWatermark = &now
 	if err := s.syncMeta.Update(ctx, userID, meta); err != nil {
 		return fmt.Errorf("update sync metadata: %w", err)
 	}
@@ -252,6 +256,64 @@ func (s *BackfillService) syncHeight(ctx context.Context, client *Client, userID
 		}
 		pageToken = resp.NextPageToken
 	}
+}
+
+// syncActiveEnergy pulls the user's complete active energy burned history
+// from Google Health and upserts one row per calendar day, summing the
+// kcal of every interval data point observed that day (active energy is an
+// interval data type with many readings per day, unlike the single daily
+// weight/height reading).
+func (s *BackfillService) syncActiveEnergy(ctx context.Context, client *Client, userID uuid.UUID, healthUserID string) error {
+	dailyKcal := make(map[string]float64)
+
+	pageToken := ""
+	for {
+		resp, err := client.ListActiveEnergyDataPoints(ctx, healthUserID, pageToken)
+		if err != nil {
+			return err
+		}
+
+		for _, dp := range resp.DataPoints {
+			if dp.ActiveEnergyBurned == nil {
+				continue
+			}
+
+			startTime, err := time.Parse(time.RFC3339, dp.ActiveEnergyBurned.Interval.StartTime)
+			if err != nil {
+				return fmt.Errorf("parse interval start time %q: %w", dp.ActiveEnergyBurned.Interval.StartTime, err)
+			}
+
+			day := startTime.Format("2006-01-02")
+			dailyKcal[day] += dp.ActiveEnergyBurned.Kcal
+		}
+
+		if resp.NextPageToken == "" {
+			break
+		}
+		pageToken = resp.NextPageToken
+	}
+
+	for day, kcal := range dailyKcal {
+		dayTime, err := time.Parse("2006-01-02", day)
+		if err != nil {
+			return fmt.Errorf("parse day %q: %w", day, err)
+		}
+
+		kcalNumeric, err := db.ToNumeric(kcal)
+		if err != nil {
+			return fmt.Errorf("convert active energy kcal: %w", err)
+		}
+
+		if _, err := s.q.UpsertActiveEnergyByDay(ctx, db.UpsertActiveEnergyByDayParams{
+			UserID:           db.ToUUID(userID),
+			Day:              db.ToDate(dayTime),
+			ActiveEnergyKcal: kcalNumeric,
+		}); err != nil {
+			return fmt.Errorf("upsert active energy entry: %w", err)
+		}
+	}
+
+	return nil
 }
 
 // googleDataPointID extracts the trailing {data_point} segment from a

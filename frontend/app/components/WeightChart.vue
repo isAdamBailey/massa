@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import 'chartjs-adapter-date-fns'
 import {
+  BarController,
+  BarElement,
   Chart as ChartJS,
   LinearScale,
   LineController,
@@ -10,23 +12,25 @@ import {
   Tooltip
 } from 'chart.js'
 import type { Plugin } from 'chart.js'
-import { Line } from 'vue-chartjs'
+import { Bar, Line } from 'vue-chartjs'
 import { BMI_BOUNDARIES } from '~/composables/useBmi'
+import type { ActiveEnergyEntry } from '~/stores/activeEnergy'
 import type { UnitsPreference } from '~/stores/settings'
 import type { WeightEntry } from '~/stores/weights'
 
-ChartJS.register(LineController, LineElement, PointElement, LinearScale, TimeScale, Tooltip)
+ChartJS.register(LineController, LineElement, PointElement, BarController, BarElement, LinearScale, TimeScale, Tooltip)
 
 const props = defineProps<{
   entries: WeightEntry[]
+  activeEnergyEntries: ActiveEnergyEntry[]
   unitsPreference: UnitsPreference
 }>()
 
 const { kgToLb, category } = useBmi()
-const { computeWeeklyAverageBy, computeWeeklyAverages } = useWeeklyAverages()
+const { computeWeeklyAverageBy, computeWeeklyAverages, computeWeeklySumBy } = useWeeklyAverages()
 
 type ViewMode = 'daily' | 'weekly'
-type MetricMode = 'weight' | 'bmi'
+type MetricMode = 'weight' | 'bmi' | 'energy'
 
 const viewMode = defineModel<ViewMode>('viewMode', { default: 'weekly' })
 const metricMode = defineModel<MetricMode>('metricMode', { default: 'weight' })
@@ -139,6 +143,23 @@ const bmiZonesPlugin: Plugin<'line'> = {
 }
 
 const chartData = computed(() => {
+  if (metricMode.value === 'energy') {
+    const data = viewMode.value === 'weekly'
+      ? computeWeeklySumBy(props.activeEnergyEntries, e => e.day, e => e.activeEnergyKcal).map(w => ({ x: new Date(w.weekStart).getTime(), y: w.total }))
+      : props.activeEnergyEntries.map(e => ({ x: new Date(e.day).getTime(), y: e.activeEnergyKcal }))
+
+    return {
+      datasets: [
+        {
+          label: viewMode.value === 'weekly' ? 'Weekly active energy (kcal)' : 'Active energy (kcal)',
+          data,
+          borderColor: VERDIGRIS,
+          backgroundColor: VERDIGRIS
+        }
+      ]
+    }
+  }
+
   if (metricMode.value === 'bmi') {
     const data = viewMode.value === 'weekly'
       ? computeWeeklyAverageBy(props.entries, e => e.bmi).map(w => ({ x: new Date(w.weekStart).getTime(), y: w.average }))
@@ -192,7 +213,7 @@ const chartOptions = computed(() => ({
       grid: { color: HAIRLINE }
     },
     y: {
-      beginAtZero: false,
+      beginAtZero: metricMode.value === 'energy',
       grace: '5%',
       ...(metricMode.value === 'bmi' && latestBmiEntry.value
         ? { suggestedMin: (latestBmiEntry.value.bmi as number) - 1, suggestedMax: (latestBmiEntry.value.bmi as number) + 1 }
@@ -240,6 +261,14 @@ const chartOptions = computed(() => ({
         >
           BMI
         </button>
+        <button
+          type="button"
+          class="rounded-sm px-3 py-1.5 text-label transition-colors duration-150"
+          :class="metricMode === 'energy' ? 'bg-verdigris text-carbon' : 'text-mist hover:bg-graphite-hover'"
+          @click="metricMode = 'energy'"
+        >
+          Active energy
+        </button>
       </div>
       <div
         role="group"
@@ -269,8 +298,21 @@ const chartOptions = computed(() => ({
         v-if="!hasData"
         class="flex h-full items-center justify-center text-body text-fog"
       >
-        {{ metricMode === 'bmi' ? 'No BMI data available.' : 'No weight entries yet.' }}
+        <template v-if="metricMode === 'bmi'">
+          No BMI data available.
+        </template>
+        <template v-else-if="metricMode === 'energy'">
+          No active energy data yet. Connect Google Health to see it here.
+        </template>
+        <template v-else>
+          No weight entries yet.
+        </template>
       </p>
+      <Bar
+        v-else-if="metricMode === 'energy'"
+        :data="chartData"
+        :options="chartOptions"
+      />
       <Line
         v-else
         :data="chartData"

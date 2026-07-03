@@ -13,6 +13,7 @@ import (
 var Scopes = []string{
 	"https://www.googleapis.com/auth/googlehealth.health_metrics_and_measurements.readonly",
 	"https://www.googleapis.com/auth/googlehealth.health_metrics_and_measurements.writeonly",
+	"https://www.googleapis.com/auth/googlehealth.activity_and_fitness.readonly",
 }
 
 // OAuthConfig builds an oauth2.Config for the Google Health API from the

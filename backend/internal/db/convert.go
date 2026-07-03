@@ -49,6 +49,20 @@ func ToDate(t time.Time) pgtype.Date {
 	return pgtype.Date{Time: t, Valid: true}
 }
 
+// ToDatePtr converts a *time.Time to the pgtype representation used by
+// sqlc-generated code, returning an invalid (NULL) value for nil.
+func ToDatePtr(t *time.Time) pgtype.Date {
+	if t == nil {
+		return pgtype.Date{}
+	}
+	return pgtype.Date{Time: *t, Valid: true}
+}
+
+// FromDate converts a pgtype.Date to a time.Time.
+func FromDate(d pgtype.Date) time.Time {
+	return d.Time
+}
+
 // ToNumeric converts a float64 to the pgtype representation used by
 // sqlc-generated code.
 func ToNumeric(f float64) (pgtype.Numeric, error) {

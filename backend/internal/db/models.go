@@ -8,6 +8,16 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+type ActiveEnergyEntry struct {
+	ID               pgtype.UUID        `json:"id"`
+	UserID           pgtype.UUID        `json:"user_id"`
+	Day              pgtype.Date        `json:"day"`
+	ActiveEnergyKcal pgtype.Numeric     `json:"active_energy_kcal"`
+	Source           string             `json:"source"`
+	CreatedAt        pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt        pgtype.Timestamptz `json:"updated_at"`
+}
+
 type AllowedUser struct {
 	ID        pgtype.UUID        `json:"id"`
 	Email     string             `json:"email"`
@@ -54,13 +64,14 @@ type Session struct {
 }
 
 type SyncMetadatum struct {
-	ID                    pgtype.UUID        `json:"id"`
-	UserID                pgtype.UUID        `json:"user_id"`
-	LastFullBackfillAt    pgtype.Timestamptz `json:"last_full_backfill_at"`
-	LastIncrementalSyncAt pgtype.Timestamptz `json:"last_incremental_sync_at"`
-	WeightSyncWatermark   pgtype.Timestamptz `json:"weight_sync_watermark"`
-	HeightSyncWatermark   pgtype.Timestamptz `json:"height_sync_watermark"`
-	UpdatedAt             pgtype.Timestamptz `json:"updated_at"`
+	ID                        pgtype.UUID        `json:"id"`
+	UserID                    pgtype.UUID        `json:"user_id"`
+	LastFullBackfillAt        pgtype.Timestamptz `json:"last_full_backfill_at"`
+	LastIncrementalSyncAt     pgtype.Timestamptz `json:"last_incremental_sync_at"`
+	WeightSyncWatermark       pgtype.Timestamptz `json:"weight_sync_watermark"`
+	HeightSyncWatermark       pgtype.Timestamptz `json:"height_sync_watermark"`
+	UpdatedAt                 pgtype.Timestamptz `json:"updated_at"`
+	ActiveEnergySyncWatermark pgtype.Timestamptz `json:"active_energy_sync_watermark"`
 }
 
 type User struct {

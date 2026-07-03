@@ -8,6 +8,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 
+	"github.com/isAdamBailey/massa/backend/internal/activeenergy"
 	"github.com/isAdamBailey/massa/backend/internal/bmi"
 	"github.com/isAdamBailey/massa/backend/internal/db"
 	"github.com/isAdamBailey/massa/backend/internal/users"
@@ -165,6 +166,20 @@ func (f *fakeUsers) SyncAllowlist(_ context.Context, emails []string) error {
 type weightEntryWithUser struct {
 	weights.Entry
 	userID uuid.UUID
+}
+
+// fakeActiveEnergyService is an in-memory implementation of
+// httpapi.ActiveEnergyService.
+type fakeActiveEnergyService struct {
+	entries []activeenergy.Entry
+}
+
+func newFakeActiveEnergyService() *fakeActiveEnergyService {
+	return &fakeActiveEnergyService{}
+}
+
+func (f *fakeActiveEnergyService) List(_ context.Context, _ uuid.UUID, _, _ *time.Time) ([]activeenergy.Entry, error) {
+	return f.entries, nil
 }
 
 // fakeWeightsService is an in-memory implementation of httpapi.WeightsService.
