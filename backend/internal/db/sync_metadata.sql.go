@@ -12,7 +12,7 @@ import (
 )
 
 const getSyncMetadataByUserID = `-- name: GetSyncMetadataByUserID :one
-SELECT id, user_id, last_full_backfill_at, last_incremental_sync_at, weight_sync_watermark, height_sync_watermark, updated_at FROM sync_metadata WHERE user_id = $1
+SELECT id, user_id, last_full_backfill_at, last_incremental_sync_at, weight_sync_watermark, height_sync_watermark, updated_at, active_energy_sync_watermark FROM sync_metadata WHERE user_id = $1
 `
 
 func (q *Queries) GetSyncMetadataByUserID(ctx context.Context, userID pgtype.UUID) (SyncMetadatum, error) {
@@ -26,6 +26,7 @@ func (q *Queries) GetSyncMetadataByUserID(ctx context.Context, userID pgtype.UUI
 		&i.WeightSyncWatermark,
 		&i.HeightSyncWatermark,
 		&i.UpdatedAt,
+		&i.ActiveEnergySyncWatermark,
 	)
 	return i, err
 }
@@ -36,16 +37,18 @@ UPDATE sync_metadata SET
     last_incremental_sync_at = $3,
     weight_sync_watermark = $4,
     height_sync_watermark = $5,
+    active_energy_sync_watermark = $6,
     updated_at = now()
 WHERE user_id = $1
 `
 
 type UpdateSyncWatermarksParams struct {
-	UserID                pgtype.UUID        `json:"user_id"`
-	LastFullBackfillAt    pgtype.Timestamptz `json:"last_full_backfill_at"`
-	LastIncrementalSyncAt pgtype.Timestamptz `json:"last_incremental_sync_at"`
-	WeightSyncWatermark   pgtype.Timestamptz `json:"weight_sync_watermark"`
-	HeightSyncWatermark   pgtype.Timestamptz `json:"height_sync_watermark"`
+	UserID                    pgtype.UUID        `json:"user_id"`
+	LastFullBackfillAt        pgtype.Timestamptz `json:"last_full_backfill_at"`
+	LastIncrementalSyncAt     pgtype.Timestamptz `json:"last_incremental_sync_at"`
+	WeightSyncWatermark       pgtype.Timestamptz `json:"weight_sync_watermark"`
+	HeightSyncWatermark       pgtype.Timestamptz `json:"height_sync_watermark"`
+	ActiveEnergySyncWatermark pgtype.Timestamptz `json:"active_energy_sync_watermark"`
 }
 
 func (q *Queries) UpdateSyncWatermarks(ctx context.Context, arg UpdateSyncWatermarksParams) error {
@@ -55,6 +58,7 @@ func (q *Queries) UpdateSyncWatermarks(ctx context.Context, arg UpdateSyncWaterm
 		arg.LastIncrementalSyncAt,
 		arg.WeightSyncWatermark,
 		arg.HeightSyncWatermark,
+		arg.ActiveEnergySyncWatermark,
 	)
 	return err
 }
@@ -63,7 +67,7 @@ const upsertSyncMetadata = `-- name: UpsertSyncMetadata :one
 INSERT INTO sync_metadata (user_id)
 VALUES ($1)
 ON CONFLICT (user_id) DO UPDATE SET user_id = excluded.user_id
-RETURNING id, user_id, last_full_backfill_at, last_incremental_sync_at, weight_sync_watermark, height_sync_watermark, updated_at
+RETURNING id, user_id, last_full_backfill_at, last_incremental_sync_at, weight_sync_watermark, height_sync_watermark, updated_at, active_energy_sync_watermark
 `
 
 func (q *Queries) UpsertSyncMetadata(ctx context.Context, userID pgtype.UUID) (SyncMetadatum, error) {
@@ -77,6 +81,7 @@ func (q *Queries) UpsertSyncMetadata(ctx context.Context, userID pgtype.UUID) (S
 		&i.WeightSyncWatermark,
 		&i.HeightSyncWatermark,
 		&i.UpdatedAt,
+		&i.ActiveEnergySyncWatermark,
 	)
 	return i, err
 }

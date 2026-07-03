@@ -3,6 +3,8 @@ const weights = useWeightsStore()
 const settings = useSettingsStore()
 const { lbToKg } = useBmi()
 
+const emit = defineEmits<{ saved: [] }>()
+
 function nowForInput(): string {
   const date = new Date()
   const pad = (n: number) => String(n).padStart(2, '0')
@@ -46,6 +48,7 @@ async function onSubmit() {
       savedTimeout = setTimeout(() => {
         justSaved.value = false
       }, 1800)
+      emit('saved')
     } else {
       formError.value = weights.error
     }
@@ -63,7 +66,7 @@ onUnmounted(() => clearTimeout(savedTimeout))
     @submit.prevent="onSubmit"
   >
     <!-- Primary action row: weight input + submit button, same height, side by side -->
-    <div class="flex items-end gap-2">
+    <div class="flex items-stretch gap-2">
       <div class="relative min-w-0 flex-1">
         <label
           for="weight-input"
@@ -88,79 +91,88 @@ onUnmounted(() => clearTimeout(savedTimeout))
         </div>
       </div>
 
-      <button
-        type="submit"
-        :disabled="submitting"
-        class="flex shrink-0 items-center justify-center gap-1.5 rounded-sm bg-verdigris px-5 py-4 text-sm font-medium text-carbon transition-colors duration-150 hover:bg-verdigris-hover disabled:cursor-not-allowed disabled:opacity-70"
-        style="min-width: 100px"
-      >
-        <Transition
-          name="fade"
-          mode="out-in"
+      <!-- Invisible label-height spacer keeps the button's own height equal
+           to the input's, since items-stretch matches column heights but
+           the button has no label pushing it down. -->
+      <div class="flex shrink-0 flex-col">
+        <span
+          class="mb-1.5 block text-label opacity-0"
+          aria-hidden="true"
+        >Log</span>
+        <button
+          type="submit"
+          :disabled="submitting"
+          class="flex flex-1 items-center justify-center gap-1.5 rounded-sm bg-verdigris px-5 text-sm font-medium text-carbon transition-colors duration-150 hover:bg-verdigris-hover disabled:cursor-not-allowed disabled:opacity-70"
+          style="min-width: 100px"
         >
-          <span
-            v-if="justSaved"
-            key="saved"
-            class="flex items-center gap-1.5"
+          <Transition
+            name="fade"
+            mode="out-in"
           >
-            <svg
-              class="h-4 w-4 shrink-0"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2.5"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              aria-hidden="true"
+            <span
+              v-if="justSaved"
+              key="saved"
+              class="flex items-center gap-1.5"
             >
-              <path d="M5 12.5 9.5 17 19 7" />
-            </svg>
-            Added
-          </span>
-          <span
-            v-else-if="submitting"
-            key="submitting"
-            class="flex items-center gap-1.5"
-          >
-            <svg
-              class="h-4 w-4 shrink-0 animate-spinner"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              aria-hidden="true"
-            >
-              <circle
-                cx="12"
-                cy="12"
-                r="9"
+              <svg
+                class="h-4 w-4 shrink-0"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
                 stroke-width="2.5"
                 stroke-linecap="round"
-                stroke-dasharray="40 16"
-              />
-            </svg>
-            Saving…
-          </span>
-          <span
-            v-else
-            key="idle"
-            class="flex items-center gap-1.5"
-          >
-            <svg
-              class="h-4 w-4 shrink-0"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2.5"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              aria-hidden="true"
+                stroke-linejoin="round"
+                aria-hidden="true"
+              >
+                <path d="M5 12.5 9.5 17 19 7" />
+              </svg>
+              Added
+            </span>
+            <span
+              v-else-if="submitting"
+              key="submitting"
+              class="flex items-center gap-1.5"
             >
-              <path d="M12 5v14M5 12h14" />
-            </svg>
-            Log
-          </span>
-        </Transition>
-      </button>
+              <svg
+                class="h-4 w-4 shrink-0 animate-spinner"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                aria-hidden="true"
+              >
+                <circle
+                  cx="12"
+                  cy="12"
+                  r="9"
+                  stroke-width="2.5"
+                  stroke-linecap="round"
+                  stroke-dasharray="40 16"
+                />
+              </svg>
+              Saving…
+            </span>
+            <span
+              v-else
+              key="idle"
+              class="flex items-center gap-1.5"
+            >
+              <svg
+                class="h-4 w-4 shrink-0"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2.5"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                aria-hidden="true"
+              >
+                <path d="M12 5v14M5 12h14" />
+              </svg>
+              Log
+            </span>
+          </Transition>
+        </button>
+      </div>
     </div>
 
     <!-- Date field: secondary, below the primary row -->

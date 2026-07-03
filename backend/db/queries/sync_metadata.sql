@@ -13,5 +13,6 @@ UPDATE sync_metadata SET
     last_incremental_sync_at = $3,
     weight_sync_watermark = $4,
     height_sync_watermark = $5,
+    active_energy_sync_watermark = $6,
     updated_at = now()
 WHERE user_id = $1;

@@ -10,6 +10,7 @@ import (
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/cors"
 
+	"github.com/isAdamBailey/massa/backend/internal/activeenergy"
 	"github.com/isAdamBailey/massa/backend/internal/auth"
 	"github.com/isAdamBailey/massa/backend/internal/config"
 	"github.com/isAdamBailey/massa/backend/internal/db"
@@ -55,6 +56,7 @@ func main() {
 
 	heightResolver := heights.NewResolver(queries)
 	weightsSvc := weights.NewService(queries, heightResolver)
+	activeEnergySvc := activeenergy.NewService(queries)
 
 	var googleDeps *httpapi.GoogleHealthDeps
 	if cfg.GoogleOAuth.Enabled {
@@ -81,7 +83,7 @@ func main() {
 		MaxAge:           300,
 	}))
 
-	httpapi.NewHandler(authSvc, userRepo, weightsSvc, cfg.CookieSecure, cfg.AppBaseURL, googleDeps).Register(r)
+	httpapi.NewHandler(authSvc, userRepo, weightsSvc, activeEnergySvc, cfg.CookieSecure, cfg.AppBaseURL, googleDeps).Register(r)
 
 	log.Printf("listening on :%s", cfg.Port)
 	if err := http.ListenAndServe(":"+cfg.Port, r); err != nil {

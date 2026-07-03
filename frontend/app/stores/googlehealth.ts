@@ -10,6 +10,10 @@ export const useGoogleHealthStore = defineStore('googlehealth', () => {
   const loading = ref(false)
   const syncing = ref(false)
   const error = ref<string | null>(null)
+  // Set when a sync fails because Google's test-app refresh token expired
+  // (it lasts 7 days until the app is published) or was revoked, so the UI
+  // can show a "reconnect" prompt instead of a plain disconnected state.
+  const reconnectRequired = ref(false)
 
   /** fetchStatus loads the current user's Google Health connection status. */
   async function fetchStatus() {
@@ -17,6 +21,9 @@ export const useGoogleHealthStore = defineStore('googlehealth', () => {
     error.value = null
     try {
       status.value = await apiFetch<GoogleHealthStatus>('/api/google/status')
+      if (status.value.connected) {
+        reconnectRequired.value = false
+      }
     } catch {
       error.value = 'Failed to load Google Health connection status.'
     } finally {
@@ -41,12 +48,18 @@ export const useGoogleHealthStore = defineStore('googlehealth', () => {
     try {
       await apiFetch('/api/google/disconnect', { method: 'POST' })
       status.value = { connected: false }
+      reconnectRequired.value = false
     } catch {
       error.value = 'Failed to disconnect Google Health. Please try again.'
     }
   }
 
-  /** sync re-runs the Google Health backfill for the current user. */
+  /**
+   * sync re-runs the Google Health backfill for the current user. Failures
+   * are swallowed into `error`/`reconnectRequired` rather than thrown, since
+   * sync is often triggered as a best-effort side effect (e.g. after saving
+   * a weight entry) where a failure shouldn't interrupt the caller.
+   */
   async function sync() {
     syncing.value = true
     error.value = null
@@ -60,6 +73,7 @@ export const useGoogleHealthStore = defineStore('googlehealth', () => {
       const body = (err as { data?: { error?: string } })?.data
       if (body?.error === 'reconnect_required') {
         status.value = { connected: false }
+        reconnectRequired.value = true
         error.value = 'Your Google Health connection has expired. Please reconnect.'
       } else {
         error.value = 'Sync failed. Please try again.'
@@ -69,5 +83,5 @@ export const useGoogleHealthStore = defineStore('googlehealth', () => {
     }
   }
 
-  return { status, loading, syncing, error, fetchStatus, connect, disconnect, sync }
+  return { status, loading, syncing, error, reconnectRequired, fetchStatus, connect, disconnect, sync }
 })

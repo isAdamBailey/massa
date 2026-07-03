@@ -127,6 +127,10 @@ func (fakeGoogleQuerier) UpsertHeightEntryByRecordedAt(_ context.Context, arg db
 	return db.HeightEntry{UserID: arg.UserID, HeightCm: arg.HeightCm, RecordedAt: arg.RecordedAt}, nil
 }
 
+func (fakeGoogleQuerier) UpsertActiveEnergyByDay(_ context.Context, arg db.UpsertActiveEnergyByDayParams) (db.ActiveEnergyEntry, error) {
+	return db.ActiveEnergyEntry{UserID: arg.UserID, Day: arg.Day, ActiveEnergyKcal: arg.ActiveEnergyKcal}, nil
+}
+
 func (fakeGoogleQuerier) GetLatestHeightEntry(context.Context, pgtype.UUID) (db.HeightEntry, error) {
 	return db.HeightEntry{}, pgx.ErrNoRows
 }
@@ -205,6 +209,10 @@ func newGoogleAPIServer(t *testing.T, pushLog *googlePushLog) *httptest.Server {
 		_, _ = w.Write([]byte(`{"dataPoints":[]}`))
 	})
 	mux.HandleFunc("/users/me/dataTypes/height/dataPoints", func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"dataPoints":[]}`))
+	})
+	mux.HandleFunc("/users/me/dataTypes/active-energy-burned/dataPoints", func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write([]byte(`{"dataPoints":[]}`))
 	})
@@ -301,7 +309,7 @@ func newGoogleTestEnv(t *testing.T) *googleTestEnv {
 
 	weightsSvc := newFakeWeightsService()
 	r := chi.NewRouter()
-	httpapi.NewHandler(svc, u, weightsSvc, false, "http://localhost:3000", google).Register(r)
+	httpapi.NewHandler(svc, u, weightsSvc, newFakeActiveEnergyService(), false, "http://localhost:3000", google).Register(r)
 
 	return &googleTestEnv{router: r, mailer: m, users: u, credentials: credentials, syncMeta: syncMeta, apiServer: apiServer, pushLog: pushLog, weights: weightsSvc}
 }

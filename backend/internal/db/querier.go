@@ -32,6 +32,7 @@ type Querier interface {
 	GetValidMagicLinkToken(ctx context.Context, tokenHash string) (MagicLinkToken, error)
 	GetWeightEntryByID(ctx context.Context, arg GetWeightEntryByIDParams) (WeightEntry, error)
 	IsEmailAllowed(ctx context.Context, email string) (bool, error)
+	ListActiveEnergyEntries(ctx context.Context, arg ListActiveEnergyEntriesParams) ([]ActiveEnergyEntry, error)
 	ListAllowedEmails(ctx context.Context) ([]string, error)
 	ListUnsyncedManualWeightEntries(ctx context.Context, userID pgtype.UUID) ([]WeightEntry, error)
 	ListWeightEntries(ctx context.Context, arg ListWeightEntriesParams) ([]WeightEntry, error)
@@ -41,6 +42,7 @@ type Querier interface {
 	UpdateUserSettings(ctx context.Context, arg UpdateUserSettingsParams) (User, error)
 	UpdateWeightEntry(ctx context.Context, arg UpdateWeightEntryParams) (WeightEntry, error)
 	UpdateWeightEntryGoogleSync(ctx context.Context, arg UpdateWeightEntryGoogleSyncParams) (WeightEntry, error)
+	UpsertActiveEnergyByDay(ctx context.Context, arg UpsertActiveEnergyByDayParams) (ActiveEnergyEntry, error)
 	UpsertAllowedUser(ctx context.Context, email string) error
 	UpsertGoogleOAuthCredentials(ctx context.Context, arg UpsertGoogleOAuthCredentialsParams) (GoogleOauthCredential, error)
 	UpsertHeightEntryByGoogleID(ctx context.Context, arg UpsertHeightEntryByGoogleIDParams) (HeightEntry, error)

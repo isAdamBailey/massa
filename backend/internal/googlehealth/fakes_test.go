@@ -21,17 +21,19 @@ type fakeQuerier struct {
 	// weightEntries and heightEntries are keyed by user ID, then by either
 	// the Google data point ID (if present) or the recorded_at timestamp
 	// formatted as RFC3339Nano, mirroring the partial unique indexes.
-	weightEntries map[uuid.UUID]map[string]db.WeightEntry
-	heightEntries map[uuid.UUID]map[string]db.HeightEntry
+	weightEntries       map[uuid.UUID]map[string]db.WeightEntry
+	heightEntries       map[uuid.UUID]map[string]db.HeightEntry
+	activeEnergyEntries map[uuid.UUID]map[string]db.ActiveEnergyEntry
 }
 
 func newFakeQuerier() *fakeQuerier {
 	return &fakeQuerier{
-		credentials:   make(map[uuid.UUID]db.GoogleOauthCredential),
-		syncMeta:      make(map[uuid.UUID]db.SyncMetadatum),
-		users:         make(map[uuid.UUID]db.User),
-		weightEntries: make(map[uuid.UUID]map[string]db.WeightEntry),
-		heightEntries: make(map[uuid.UUID]map[string]db.HeightEntry),
+		credentials:         make(map[uuid.UUID]db.GoogleOauthCredential),
+		syncMeta:            make(map[uuid.UUID]db.SyncMetadatum),
+		users:               make(map[uuid.UUID]db.User),
+		weightEntries:       make(map[uuid.UUID]map[string]db.WeightEntry),
+		heightEntries:       make(map[uuid.UUID]map[string]db.HeightEntry),
+		activeEnergyEntries: make(map[uuid.UUID]map[string]db.ActiveEnergyEntry),
 	}
 }
 
@@ -104,6 +106,7 @@ func (f *fakeQuerier) UpdateSyncWatermarks(_ context.Context, arg db.UpdateSyncW
 	row.LastIncrementalSyncAt = arg.LastIncrementalSyncAt
 	row.WeightSyncWatermark = arg.WeightSyncWatermark
 	row.HeightSyncWatermark = arg.HeightSyncWatermark
+	row.ActiveEnergySyncWatermark = arg.ActiveEnergySyncWatermark
 	f.syncMeta[db.FromUUID(arg.UserID)] = row
 	return nil
 }
@@ -140,6 +143,24 @@ func (f *fakeQuerier) upsertWeightEntry(userID pgtype.UUID, key string, weightKg
 		HeightUsedCm:      heightUsedCm,
 		Source:            "google",
 		GoogleDataPointID: dataPointID,
+	}
+	entries[key] = row
+	return row, nil
+}
+
+func (f *fakeQuerier) UpsertActiveEnergyByDay(_ context.Context, arg db.UpsertActiveEnergyByDayParams) (db.ActiveEnergyEntry, error) {
+	entries, ok := f.activeEnergyEntries[db.FromUUID(arg.UserID)]
+	if !ok {
+		entries = make(map[string]db.ActiveEnergyEntry)
+		f.activeEnergyEntries[db.FromUUID(arg.UserID)] = entries
+	}
+	key := arg.Day.Time.Format("2006-01-02")
+	row := db.ActiveEnergyEntry{
+		ID:               db.ToUUID(uuid.New()),
+		UserID:           arg.UserID,
+		Day:              arg.Day,
+		ActiveEnergyKcal: arg.ActiveEnergyKcal,
+		Source:           "google",
 	}
 	entries[key] = row
 	return row, nil
