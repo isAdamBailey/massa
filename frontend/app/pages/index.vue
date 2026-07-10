@@ -53,15 +53,11 @@ async function loadEntries() {
 const { computeWeightTrend, computeEnergyTrend, computeVerdict, verdictLabel } = useWeekVerdict()
 
 /**
- * Reruns the Google sync whenever it isn't already in flight, best-effort,
- * then refreshes local data so newly-synced entries (e.g. active energy)
- * show up without the user having to visit Settings and click "Sync now".
+ * WeightEntryForm already syncs with Google (pulling in fresh active energy
+ * data) before it saves the weight entry, so all that's left is to refresh
+ * local data to reflect both.
  */
-async function syncWithGoogleAfterSave() {
-  if (!google.status.connected || google.syncing) {
-    return
-  }
-  await google.sync()
+async function refreshAfterSave() {
   await loadEntries()
 }
 
@@ -212,7 +208,7 @@ function formatDate(value?: string) {
         <h2 class="text-title font-sans">
           Add weight entry
         </h2>
-        <WeightEntryForm @saved="syncWithGoogleAfterSave" />
+        <WeightEntryForm @saved="refreshAfterSave" />
       </section>
 
       <section class="space-y-4 rounded-md bg-slate p-5">

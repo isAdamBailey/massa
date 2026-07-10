@@ -1,6 +1,7 @@
 <script setup lang="ts">
 const weights = useWeightsStore()
 const settings = useSettingsStore()
+const google = useGoogleHealthStore()
 const { lbToKg } = useBmi()
 
 const emit = defineEmits<{ saved: [] }>()
@@ -39,6 +40,18 @@ async function onSubmit() {
 
   submitting.value = true
   try {
+    // Sync with Google Health before logging the weight, not after: this is
+    // where a stale/revoked Google connection surfaces (reconnect_required).
+    // Catching it here means we never save a weight entry we can't also
+    // account for in that day's synced energy data.
+    if (google.status.connected && !google.syncing) {
+      await google.sync()
+      if (google.reconnectRequired) {
+        formError.value = google.error ?? 'Google Health needs to reconnect. Please reconnect before logging a new weight.'
+        return
+      }
+    }
+
     const entry = await weights.createEntry({ weightKg, recordedAt })
     if (entry) {
       weightInput.value = ''
