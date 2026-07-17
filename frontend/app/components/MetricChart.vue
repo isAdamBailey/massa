@@ -15,6 +15,8 @@ import {
 import type { Plugin } from 'chart.js'
 import { Bar, Line } from 'vue-chartjs'
 import { BMI_BOUNDARIES } from '~/composables/useBmi'
+import { OVERWHELM_BASELINE } from '~/composables/useOverwhelm'
+import type { SegmentedOption } from '~/components/SegmentedControl.vue'
 import type { ActiveEnergyEntry } from '~/stores/activeEnergy'
 import type { OverwhelmEntry } from '~/stores/overwhelm'
 import type { UnitsPreference } from '~/stores/settings'
@@ -37,6 +39,18 @@ type MetricMode = 'weight' | 'bmi' | 'energy' | 'overwhelm'
 
 const viewMode = defineModel<ViewMode>('viewMode', { default: 'weekly' })
 const metricMode = defineModel<MetricMode>('metricMode', { default: 'weight' })
+
+const metricOptions: SegmentedOption<MetricMode>[] = [
+  { value: 'weight', label: 'Weight' },
+  { value: 'bmi', label: 'BMI' },
+  { value: 'energy', label: 'Active energy' },
+  { value: 'overwhelm', label: 'Overwhelm' }
+]
+
+const viewOptions: SegmentedOption<ViewMode>[] = [
+  { value: 'daily', label: 'Daily' },
+  { value: 'weekly', label: 'Weekly' }
+]
 
 const VERDIGRIS = 'oklch(0.70 0.09 170)'
 const FOG = 'oklch(0.64 0.01 170)'
@@ -144,11 +158,6 @@ const bmiZonesPlugin: Plugin<'line'> = {
     ctx.restore()
   }
 }
-
-// Baseline is the neutral point on the overwhelm scale: readings above it are
-// more overwhelmed than usual, below it less. Mirrors the backend constant in
-// internal/overwhelm.
-const OVERWHELM_BASELINE = 3
 
 const overwhelmBaselinePlugin: Plugin<'line'> = {
   id: 'overwhelmBaseline',
@@ -361,66 +370,16 @@ const chartOptions = computed(() => ({
 <template>
   <div>
     <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
-      <div
-        role="group"
+      <SegmentedControl
+        v-model="metricMode"
+        :options="metricOptions"
         aria-label="Metric"
-        class="flex gap-1 rounded-sm bg-graphite p-1"
-      >
-        <button
-          type="button"
-          class="rounded-sm px-3 py-1.5 text-label transition-colors duration-150"
-          :class="metricMode === 'weight' ? 'bg-verdigris text-carbon' : 'text-mist hover:bg-graphite-hover'"
-          @click="metricMode = 'weight'"
-        >
-          Weight
-        </button>
-        <button
-          type="button"
-          class="rounded-sm px-3 py-1.5 text-label transition-colors duration-150"
-          :class="metricMode === 'bmi' ? 'bg-verdigris text-carbon' : 'text-mist hover:bg-graphite-hover'"
-          @click="metricMode = 'bmi'"
-        >
-          BMI
-        </button>
-        <button
-          type="button"
-          class="rounded-sm px-3 py-1.5 text-label transition-colors duration-150"
-          :class="metricMode === 'energy' ? 'bg-verdigris text-carbon' : 'text-mist hover:bg-graphite-hover'"
-          @click="metricMode = 'energy'"
-        >
-          Active energy
-        </button>
-        <button
-          type="button"
-          class="rounded-sm px-3 py-1.5 text-label transition-colors duration-150"
-          :class="metricMode === 'overwhelm' ? 'bg-verdigris text-carbon' : 'text-mist hover:bg-graphite-hover'"
-          @click="metricMode = 'overwhelm'"
-        >
-          Overwhelm
-        </button>
-      </div>
-      <div
-        role="group"
+      />
+      <SegmentedControl
+        v-model="viewMode"
+        :options="viewOptions"
         aria-label="Range"
-        class="flex gap-1 rounded-sm bg-graphite p-1"
-      >
-        <button
-          type="button"
-          class="rounded-sm px-3 py-1.5 text-label transition-colors duration-150"
-          :class="viewMode === 'daily' ? 'bg-verdigris text-carbon' : 'text-mist hover:bg-graphite-hover'"
-          @click="viewMode = 'daily'"
-        >
-          Daily
-        </button>
-        <button
-          type="button"
-          class="rounded-sm px-3 py-1.5 text-label transition-colors duration-150"
-          :class="viewMode === 'weekly' ? 'bg-verdigris text-carbon' : 'text-mist hover:bg-graphite-hover'"
-          @click="viewMode = 'weekly'"
-        >
-          Weekly
-        </button>
-      </div>
+      />
     </div>
     <div class="h-64">
       <p

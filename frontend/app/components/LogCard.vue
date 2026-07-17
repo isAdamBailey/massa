@@ -1,4 +1,8 @@
 <script setup lang="ts">
+import { OVERWHELM_BASELINE } from '~/composables/useOverwhelm'
+import { toDateLocalInput, toDateTimeLocalInput } from '~/composables/useLocalDateInput'
+import type { SegmentedOption } from '~/components/SegmentedControl.vue'
+
 const weights = useWeightsStore()
 const overwhelm = useOverwhelmStore()
 const overwhelmTags = useOverwhelmTagsStore()
@@ -13,51 +17,59 @@ onMounted(() => {
 
 const emit = defineEmits<{ saved: [] }>()
 
-function nowForInput(): string {
-  const date = new Date()
-  const pad = (n: number) => String(n).padStart(2, '0')
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`
-}
-
-function todayKey(): string {
-  const date = new Date()
-  const pad = (n: number) => String(n).padStart(2, '0')
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`
-}
-
 type LogTab = 'weight' | 'overwhelm'
-const activeTab = ref<LogTab>('weight')
-const tabSeeded = ref(false)
 
-const loggedWeightToday = computed(() =>
-  weights.entries.some(e => toLocalDate(e.recordedAt).toDateString() === new Date().toDateString()))
-const loggedOverwhelmToday = computed(() =>
-  overwhelm.entries.some(e => e.day === todayKey()))
+interface LogMetric {
+  id: LogTab
+  label: string
+  loggedToday: () => boolean
+}
+
+// Ordered list of loggable metrics. Prefer the first still-outstanding metric
+// when seeding the active tab; weight stays first so it wins ties.
+const logMetrics: LogMetric[] = [
+  {
+    id: 'weight',
+    label: 'Weight',
+    loggedToday: () => weights.entries.some(e => toLocalDate(e.recordedAt).toDateString() === new Date().toDateString())
+  },
+  {
+    id: 'overwhelm',
+    label: 'Overwhelm',
+    loggedToday: () => overwhelm.entries.some(e => e.day === toDateLocalInput())
+  }
+]
+
+const tabOptions: SegmentedOption<LogTab>[] = logMetrics.map(m => ({ value: m.id, label: m.label }))
+
+const defaultTab = logMetrics[0]!.id
+const activeTab = ref<LogTab>(defaultTab)
+const tabSeeded = ref(false)
+const fetchSeen = ref(false)
 
 // The form mounts before the page's onMounted fetch resolves, so both stores
-// start empty; a computed default would misfire at first paint and again
-// flip the tab out from under the user after a save. Seed once, when the
-// data first arrives, instead.
+// start empty. Wait until a fetch has started and finished before seeding —
+// immediate:true on loading alone would latch on the idle-before-fetch state.
 watch(
   () => weights.loading || overwhelm.loading,
   (busy) => {
-    if (busy || tabSeeded.value) {
+    if (busy) {
+      fetchSeen.value = true
+      return
+    }
+    if (!fetchSeen.value || tabSeeded.value) {
       return
     }
     tabSeeded.value = true
-    // Weight is logged in the morning and overwhelm in the evening, so open
-    // on whichever is still outstanding; weight wins when both or neither are.
-    if (loggedWeightToday.value && !loggedOverwhelmToday.value) {
-      activeTab.value = 'overwhelm'
-    }
-  },
-  { immediate: true }
+    const outstanding = logMetrics.find(m => !m.loggedToday())
+    activeTab.value = outstanding?.id ?? defaultTab
+  }
 )
 
 // --- Weight tab ---
 
 const weightInput = ref('')
-const dateInput = ref(nowForInput())
+const dateInput = ref(toDateTimeLocalInput())
 const submitting = ref(false)
 const justSaved = ref(false)
 const formError = ref<string | null>(null)
@@ -99,7 +111,7 @@ async function onSubmit() {
     const entry = await weights.createEntry({ weightKg, recordedAt })
     if (entry) {
       weightInput.value = ''
-      dateInput.value = nowForInput()
+      dateInput.value = toDateTimeLocalInput()
       clearTimeout(savedTimeout)
       justSaved.value = true
       savedTimeout = setTimeout(() => {
@@ -116,10 +128,8 @@ async function onSubmit() {
 
 // --- Overwhelm tab ---
 
-const OVERWHELM_BASELINE = 3
-
 const overwhelmLevel = ref<number | null>(null)
-const overwhelmDate = ref(todayKey())
+const overwhelmDate = ref(toDateLocalInput())
 const selectedTagIds = ref<string[]>([])
 const overwhelmSubmitting = ref(false)
 const overwhelmJustSaved = ref(false)
@@ -150,10 +160,8 @@ async function onSubmitOverwhelm() {
     // No Google Health sync here: overwhelm has no counterpart there.
     const entry = await overwhelm.saveEntry({ day: overwhelmDate.value, overwhelmLevel: overwhelmLevel.value, tagIds: selectedTagIds.value })
     if (entry) {
-      // Leave the level and tags selected - it's a rating, not a number
-      // field, and blanking it discards the answer and makes a correction
-      // re-tap harder.
-      overwhelmDate.value = todayKey()
+      // Leave the level, tags, and date selected — it's a rating upsert, not
+      // a new row, so blanking the date (or the answer) makes corrections harder.
       clearTimeout(overwhelmSavedTimeout)
       overwhelmJustSaved.value = true
       overwhelmSavedTimeout = setTimeout(() => {
@@ -176,35 +184,18 @@ onUnmounted(() => {
 
 <template>
   <div class="space-y-3">
-    <div
-      role="group"
+    <SegmentedControl
+      v-model="activeTab"
+      :options="tabOptions"
       aria-label="Metric"
-      class="flex gap-1 rounded-sm bg-graphite p-1"
-    >
-      <button
-        type="button"
-        class="flex-1 rounded-sm px-3 py-1.5 text-label transition-colors duration-150"
-        :class="activeTab === 'weight' ? 'bg-verdigris text-carbon' : 'text-mist hover:bg-graphite-hover'"
-        @click="activeTab = 'weight'"
-      >
-        Weight
-      </button>
-      <button
-        type="button"
-        class="flex-1 rounded-sm px-3 py-1.5 text-label transition-colors duration-150"
-        :class="activeTab === 'overwhelm' ? 'bg-verdigris text-carbon' : 'text-mist hover:bg-graphite-hover'"
-        @click="activeTab = 'overwhelm'"
-      >
-        Overwhelm
-      </button>
-    </div>
+      stretch
+    />
 
     <form
       v-if="activeTab === 'weight'"
       class="space-y-3"
       @submit.prevent="onSubmit"
     >
-      <!-- Primary action row: weight input + submit button, same height, side by side -->
       <div class="flex items-stretch gap-2">
         <div class="relative min-w-0 flex-1">
           <label
@@ -238,83 +229,13 @@ onUnmounted(() => {
             class="mb-1.5 block text-label opacity-0"
             aria-hidden="true"
           >Log</span>
-          <button
-            type="submit"
-            :disabled="submitting"
-            class="flex flex-1 items-center justify-center gap-1.5 rounded-sm bg-verdigris px-5 text-sm font-medium text-carbon transition-colors duration-150 hover:bg-verdigris-hover disabled:cursor-not-allowed disabled:opacity-70"
-            style="min-width: 100px"
-          >
-            <Transition
-              name="fade"
-              mode="out-in"
-            >
-              <span
-                v-if="justSaved"
-                key="saved"
-                class="flex items-center gap-1.5"
-              >
-                <svg
-                  class="h-4 w-4 shrink-0"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="2.5"
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  aria-hidden="true"
-                >
-                  <path d="M5 12.5 9.5 17 19 7" />
-                </svg>
-                Added
-              </span>
-              <span
-                v-else-if="submitting"
-                key="submitting"
-                class="flex items-center gap-1.5"
-              >
-                <svg
-                  class="h-4 w-4 shrink-0 animate-spinner"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  aria-hidden="true"
-                >
-                  <circle
-                    cx="12"
-                    cy="12"
-                    r="9"
-                    stroke-width="2.5"
-                    stroke-linecap="round"
-                    stroke-dasharray="40 16"
-                  />
-                </svg>
-                Saving…
-              </span>
-              <span
-                v-else
-                key="idle"
-                class="flex items-center gap-1.5"
-              >
-                <svg
-                  class="h-4 w-4 shrink-0"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="2.5"
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  aria-hidden="true"
-                >
-                  <path d="M12 5v14M5 12h14" />
-                </svg>
-                Log
-              </span>
-            </Transition>
-          </button>
+          <LogSubmitButton
+            :submitting="submitting"
+            :just-saved="justSaved"
+          />
         </div>
       </div>
 
-      <!-- Date field: secondary, below the primary row -->
       <div>
         <label
           for="date-input"
@@ -337,7 +258,7 @@ onUnmounted(() => {
     </form>
 
     <form
-      v-else
+      v-else-if="activeTab === 'overwhelm'"
       class="space-y-3"
       @submit.prevent="onSubmitOverwhelm"
     >
@@ -372,7 +293,7 @@ onUnmounted(() => {
           </button>
         </div>
         <p class="mt-1.5 text-label text-fog">
-          1 = calm · 3 = your baseline · 10 = most overwhelmed
+          1 = calm · {{ OVERWHELM_BASELINE }} = your baseline · 10 = most overwhelmed
         </p>
       </div>
 
@@ -428,79 +349,10 @@ onUnmounted(() => {
             class="mb-1.5 block text-label opacity-0"
             aria-hidden="true"
           >Log</span>
-          <button
-            type="submit"
-            :disabled="overwhelmSubmitting"
-            class="flex flex-1 items-center justify-center gap-1.5 rounded-sm bg-verdigris px-5 text-sm font-medium text-carbon transition-colors duration-150 hover:bg-verdigris-hover disabled:cursor-not-allowed disabled:opacity-70"
-            style="min-width: 100px"
-          >
-            <Transition
-              name="fade"
-              mode="out-in"
-            >
-              <span
-                v-if="overwhelmJustSaved"
-                key="saved"
-                class="flex items-center gap-1.5"
-              >
-                <svg
-                  class="h-4 w-4 shrink-0"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="2.5"
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  aria-hidden="true"
-                >
-                  <path d="M5 12.5 9.5 17 19 7" />
-                </svg>
-                Added
-              </span>
-              <span
-                v-else-if="overwhelmSubmitting"
-                key="submitting"
-                class="flex items-center gap-1.5"
-              >
-                <svg
-                  class="h-4 w-4 shrink-0 animate-spinner"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  aria-hidden="true"
-                >
-                  <circle
-                    cx="12"
-                    cy="12"
-                    r="9"
-                    stroke-width="2.5"
-                    stroke-linecap="round"
-                    stroke-dasharray="40 16"
-                  />
-                </svg>
-                Saving…
-              </span>
-              <span
-                v-else
-                key="idle"
-                class="flex items-center gap-1.5"
-              >
-                <svg
-                  class="h-4 w-4 shrink-0"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="2.5"
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  aria-hidden="true"
-                >
-                  <path d="M12 5v14M5 12h14" />
-                </svg>
-                Log
-              </span>
-            </Transition>
-          </button>
+          <LogSubmitButton
+            :submitting="overwhelmSubmitting"
+            :just-saved="overwhelmJustSaved"
+          />
         </div>
       </div>
 
@@ -513,22 +365,3 @@ onUnmounted(() => {
     </form>
   </div>
 </template>
-
-<style scoped>
-.fade-enter-active,
-.fade-leave-active {
-  transition: opacity 150ms ease-out;
-}
-
-.fade-enter-from,
-.fade-leave-to {
-  opacity: 0;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .fade-enter-active,
-  .fade-leave-active {
-    transition: none;
-  }
-}
-</style>

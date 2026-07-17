@@ -46,8 +46,11 @@ export const useOverwhelmTagsStore = defineStore('overwhelmTags', () => {
         .map(t => t.id === id ? tag : t)
         .sort((a, b) => a.name.localeCompare(b.name))
       return tag
-    } catch {
-      error.value = 'A tag with that name already exists.'
+    } catch (err) {
+      const statusCode = (err as { statusCode?: number })?.statusCode
+      error.value = statusCode === 409
+        ? 'A tag with that name already exists.'
+        : 'Failed to rename tag.'
       return null
     }
   }
