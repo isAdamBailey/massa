@@ -97,6 +97,13 @@ Forge runs `scripts/forge-deploy.sh` on push. See `docs/DEPLOY.md`.
   `heights.Resolver` and denormalized onto the row — never recomputed
   retroactively. Entries with no resolvable height are stored with NULL
   bmi/height_used_cm.
+- `internal/activeenergy` — `Service` for read access to daily active energy
+  totals synced in from Google Health (day-keyed, `source` always `google`).
+- `internal/overwhelm` — `Service` for a manually logged daily 1-10
+  subjective overwhelm rating (`Baseline = 3`). Day-keyed with
+  `UNIQUE(user_id, day)`; writes go through a single `Upsert` (no
+  create/update/delete), so re-logging the same day is a correction, not a
+  second reading. No `ErrNotFound` — there is no lookup by id.
 - `internal/googlehealth` — Google Health OAuth, encrypted credential
   storage (AES-256-GCM via `crypto.go`), and the backfill/sync service that
   pulls weight/height history from the Google Health API.
@@ -123,10 +130,12 @@ Migrations are embedded (`migrations/embed.go`) and applied automatically by
 `cmd/server` on startup (and by `cmd/migrate` standalone). Key tables:
 `users`, `allowed_users`, `sessions`, `magic_link_tokens`,
 `google_oauth_credentials`, `height_entries`, `weight_entries`,
-`sync_metadata`. Weight/height entries have a `source` of `manual` or
-`google`, with unique indexes to dedupe Google-synced data points (by
-`google_data_point_id`, or by `(user_id, recorded_at)` when Google doesn't
-provide one).
+`active_energy_entries`, `overwhelm_entries`, `sync_metadata`. Weight/height
+entries have a `source` of `manual` or `google`, with unique indexes to
+dedupe Google-synced data points (by `google_data_point_id`, or by
+`(user_id, recorded_at)` when Google doesn't provide one). Active energy and
+overwhelm entries are day-keyed (`day DATE`) with a `UNIQUE(user_id, day)`
+index instead — active energy is Google-only, overwhelm is manual-only.
 
 ### Frontend structure
 
@@ -136,14 +145,19 @@ provide one).
 - `app/composables/useBmi.ts` — BMI categorization and metric/imperial unit
   conversions (kg<->lb, cm<->in), shared across pages/components.
 - `app/stores/` — Pinia stores: `auth`, `googlehealth`, `weights`,
-  `settings`. Stores are auto-imported (`useXStore`); types like
-  `WeightEntry`/`Settings`/`UnitsPreference` need explicit `import type`.
+  `activeEnergy`, `overwhelm`, `settings`. Stores are auto-imported
+  (`useXStore`); types like `WeightEntry`/`Settings`/`UnitsPreference` need
+  explicit `import type`.
 - `app/middleware/auth.global.ts` — redirects unauthenticated users to
   `/login`, calling `auth.fetchMe()` once on first navigation.
-- `app/components/WeightChart.vue` — Chart.js line chart (via vue-chartjs
-  + chartjs-adapter-date-fns) of weight over time, unit-aware.
+- `app/components/MetricChart.vue` — Chart.js chart (via vue-chartjs +
+  chartjs-adapter-date-fns) with a metric switcher (weight/BMI/active
+  energy/overwhelm) and a daily/weekly view toggle, unit-aware.
+- `app/components/LogCard.vue` — tabbed daily-entry card (Weight /
+  Overwhelm); defaults to whichever metric isn't logged yet today, since
+  the two are typically logged at different times of day.
 - `app/pages/index.vue` — dashboard: latest weight/BMI, date-range presets,
-  chart, add-entry form, Google sync status banner.
+  chart, the Log card, Google sync status banner.
 - `app/pages/settings/index.vue` — Google Health connect/disconnect/sync,
   units preference, and manual height override.
 

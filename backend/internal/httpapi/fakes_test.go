@@ -2,6 +2,7 @@ package httpapi_test
 
 import (
 	"context"
+	"sort"
 	"time"
 
 	"github.com/google/uuid"
@@ -11,6 +12,7 @@ import (
 	"github.com/isAdamBailey/massa/backend/internal/activeenergy"
 	"github.com/isAdamBailey/massa/backend/internal/bmi"
 	"github.com/isAdamBailey/massa/backend/internal/db"
+	"github.com/isAdamBailey/massa/backend/internal/overwhelm"
 	"github.com/isAdamBailey/massa/backend/internal/users"
 	"github.com/isAdamBailey/massa/backend/internal/weights"
 )
@@ -180,6 +182,54 @@ func newFakeActiveEnergyService() *fakeActiveEnergyService {
 
 func (f *fakeActiveEnergyService) List(_ context.Context, _ uuid.UUID, _, _ *time.Time) ([]activeenergy.Entry, error) {
 	return f.entries, nil
+}
+
+// overwhelmKey identifies an overwhelm entry the way the database does: by
+// user and day.
+type overwhelmKey struct {
+	userID uuid.UUID
+	day    string
+}
+
+// fakeOverwhelmService is an in-memory implementation of
+// httpapi.OverwhelmService.
+type fakeOverwhelmService struct {
+	entries map[overwhelmKey]overwhelm.Entry
+}
+
+func newFakeOverwhelmService() *fakeOverwhelmService {
+	return &fakeOverwhelmService{entries: make(map[overwhelmKey]overwhelm.Entry)}
+}
+
+func (f *fakeOverwhelmService) List(_ context.Context, userID uuid.UUID, from, to *time.Time) ([]overwhelm.Entry, error) {
+	var entries []overwhelm.Entry
+	for k, e := range f.entries {
+		if k.userID != userID {
+			continue
+		}
+		if from != nil && e.Day.Before(*from) {
+			continue
+		}
+		if to != nil && e.Day.After(*to) {
+			continue
+		}
+		entries = append(entries, e)
+	}
+	sort.Slice(entries, func(i, j int) bool { return entries[i].Day.Before(entries[j].Day) })
+	return entries, nil
+}
+
+func (f *fakeOverwhelmService) Upsert(_ context.Context, userID uuid.UUID, day time.Time, level int) (overwhelm.Entry, error) {
+	key := overwhelmKey{userID: userID, day: day.Format("2006-01-02")}
+	now := time.Now()
+	entry, ok := f.entries[key]
+	if !ok {
+		entry = overwhelm.Entry{ID: uuid.New(), Day: day, CreatedAt: now}
+	}
+	entry.OverwhelmLevel = level
+	entry.UpdatedAt = now
+	f.entries[key] = entry
+	return entry, nil
 }
 
 // fakeWeightsService is an in-memory implementation of httpapi.WeightsService.

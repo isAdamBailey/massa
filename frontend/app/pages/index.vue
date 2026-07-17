@@ -4,13 +4,14 @@ import type { WeightEntry } from '~/stores/weights'
 const auth = useAuthStore()
 const weights = useWeightsStore()
 const activeEnergy = useActiveEnergyStore()
+const overwhelm = useOverwhelmStore()
 const settings = useSettingsStore()
 const google = useGoogleHealthStore()
 const { kgToLb } = useBmi()
 
 type RangePreset = '7d' | '30d' | '90d' | '1y' | 'all'
 type ChartViewMode = 'daily' | 'weekly'
-type ChartMetricMode = 'weight' | 'bmi' | 'energy'
+type ChartMetricMode = 'weight' | 'bmi' | 'energy' | 'overwhelm'
 
 const rangePreset = ref<RangePreset>('90d')
 const chartViewMode = ref<ChartViewMode>('weekly')
@@ -46,16 +47,18 @@ async function loadEntries() {
   const from = currentRangeFrom()
   await Promise.all([
     weights.fetchEntries(from ? { from } : {}),
-    activeEnergy.fetchEntries(from ? { from } : {})
+    activeEnergy.fetchEntries(from ? { from } : {}),
+    overwhelm.fetchEntries(from ? { from } : {})
   ])
 }
 
 const { computeWeightTrend, computeEnergyTrend, computeVerdict, verdictLabel } = useWeekVerdict()
 
 /**
- * WeightEntryForm already syncs with Google (pulling in fresh active energy
- * data) before it saves the weight entry, so all that's left is to refresh
- * local data to reflect both.
+ * The weight tab of LogCard already syncs with Google (pulling in fresh
+ * active energy data) before it saves the weight entry, so all that's left
+ * is to refresh local data to reflect it - and, for the overwhelm tab, the
+ * newly saved entry itself.
  */
 async function refreshAfterSave() {
   await loadEntries()
@@ -206,9 +209,9 @@ function formatDate(value?: string) {
 
       <section class="space-y-3 rounded-md bg-slate p-5">
         <h2 class="text-title font-sans">
-          Add weight entry
+          Log
         </h2>
-        <WeightEntryForm @saved="refreshAfterSave" />
+        <LogCard @saved="refreshAfterSave" />
       </section>
 
       <section class="space-y-4 rounded-md bg-slate p-5">
@@ -226,17 +229,18 @@ function formatDate(value?: string) {
         </div>
 
         <p
-          v-if="weights.loading || activeEnergy.loading"
+          v-if="weights.loading || activeEnergy.loading || overwhelm.loading"
           class="text-body text-fog"
         >
           Loading…
         </p>
-        <WeightChart
+        <MetricChart
           v-else
           v-model:view-mode="chartViewMode"
           v-model:metric-mode="chartMetricMode"
           :entries="displayEntries"
           :active-energy-entries="activeEnergy.entries"
+          :overwhelm-entries="overwhelm.entries"
           :units-preference="settings.settings.unitsPreference"
         />
 

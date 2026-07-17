@@ -56,6 +56,15 @@ type MagicLinkToken struct {
 	CreatedAt pgtype.Timestamptz `json:"created_at"`
 }
 
+type OverwhelmEntry struct {
+	ID             pgtype.UUID        `json:"id"`
+	UserID         pgtype.UUID        `json:"user_id"`
+	Day            pgtype.Date        `json:"day"`
+	OverwhelmLevel int16              `json:"overwhelm_level"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
+}
+
 type Session struct {
 	ID        pgtype.UUID        `json:"id"`
 	UserID    pgtype.UUID        `json:"user_id"`

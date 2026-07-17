@@ -38,14 +38,18 @@ function toLocalDate(input: string | Date): Date {
  * the chart and dashboard summary.
  */
 export function useWeeklyAverages() {
-  function computeWeeklyAverageBy(entries: WeightEntry[], valueFn: (entry: WeightEntry) => number | null | undefined): WeeklyAverage[] {
+  function computeWeeklyAverageBy<T>(
+    items: T[],
+    dateFn: (item: T) => string | Date,
+    valueFn: (item: T) => number | null | undefined
+  ): WeeklyAverage[] {
     const groups = new Map<string, { sum: number, count: number }>()
-    for (const entry of entries) {
-      const value = valueFn(entry)
+    for (const item of items) {
+      const value = valueFn(item)
       if (value === null || value === undefined) {
         continue
       }
-      const weekStart = startOfWeek(new Date(entry.recordedAt), { weekStartsOn: 1 }).toISOString()
+      const weekStart = startOfWeek(toLocalDate(dateFn(item)), { weekStartsOn: 1 }).toISOString()
       const group = groups.get(weekStart) ?? { sum: 0, count: 0 }
       group.sum += value
       group.count += 1
@@ -61,7 +65,7 @@ export function useWeeklyAverages() {
   }
 
   function computeWeeklyAverages(entries: WeightEntry[]): WeeklyAverage[] {
-    return computeWeeklyAverageBy(entries, entry => entry.weightKg)
+    return computeWeeklyAverageBy(entries, entry => entry.recordedAt, entry => entry.weightKg)
   }
 
   function currentWeekAverage(entries: WeightEntry[]): WeeklyAverage | null {
@@ -89,5 +93,5 @@ export function useWeeklyAverages() {
       .sort((a, b) => a.weekStart.localeCompare(b.weekStart))
   }
 
-  return { computeWeeklyAverageBy, computeWeeklyAverages, currentWeekAverage, computeWeeklySumBy }
+  return { computeWeeklyAverageBy, computeWeeklyAverages, currentWeekAverage, computeWeeklySumBy, toLocalDate }
 }

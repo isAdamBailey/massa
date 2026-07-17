@@ -18,6 +18,7 @@ import (
 	"github.com/isAdamBailey/massa/backend/internal/heights"
 	"github.com/isAdamBailey/massa/backend/internal/httpapi"
 	"github.com/isAdamBailey/massa/backend/internal/mailer"
+	"github.com/isAdamBailey/massa/backend/internal/overwhelm"
 	"github.com/isAdamBailey/massa/backend/internal/users"
 	"github.com/isAdamBailey/massa/backend/internal/weights"
 )
@@ -57,6 +58,7 @@ func main() {
 	heightResolver := heights.NewResolver(queries)
 	weightsSvc := weights.NewService(queries, heightResolver)
 	activeEnergySvc := activeenergy.NewService(queries)
+	overwhelmSvc := overwhelm.NewService(queries)
 
 	var googleDeps *httpapi.GoogleHealthDeps
 	if cfg.GoogleOAuth.Enabled {
@@ -83,7 +85,7 @@ func main() {
 		MaxAge:           300,
 	}))
 
-	httpapi.NewHandler(authSvc, userRepo, weightsSvc, activeEnergySvc, cfg.CookieSecure, cfg.AppBaseURL, googleDeps).Register(r)
+	httpapi.NewHandler(authSvc, userRepo, weightsSvc, activeEnergySvc, overwhelmSvc, cfg.CookieSecure, cfg.AppBaseURL, googleDeps).Register(r)
 
 	log.Printf("listening on :%s", cfg.Port)
 	if err := http.ListenAndServe(":"+cfg.Port, r); err != nil {

@@ -25,7 +25,7 @@ type activeEnergyEntryResponse struct {
 
 func toActiveEnergyEntryResponse(e activeenergy.Entry) activeEnergyEntryResponse {
 	return activeEnergyEntryResponse{
-		Day:              e.Day.Format("2006-01-02"),
+		Day:              e.Day.Format(dayLayout),
 		ActiveEnergyKcal: e.ActiveEnergyKcal,
 	}
 }
