@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import 'chartjs-adapter-date-fns'
+import { startOfWeek } from 'date-fns'
 import {
   BarController,
   BarElement,
@@ -184,6 +185,48 @@ const overwhelmBaselinePlugin: Plugin<'line'> = {
   }
 }
 
+// Tag names per day, keyed by the same epoch-ms x value the daily overwhelm
+// dataset plots, so the tooltip can look a point's tags up by its x.
+const overwhelmDailyTagNames = computed<Record<number, string>>(() => {
+  const map: Record<number, string> = {}
+  for (const entry of props.overwhelmEntries) {
+    if (!entry.tags.length) {
+      continue
+    }
+    const x = toLocalDate(entry.day).getTime()
+    map[x] = entry.tags.map(t => t.name).sort((a, b) => a.localeCompare(b)).join(' · ')
+  }
+  return map
+})
+
+// The top 3 tags by frequency per week (ties broken alphabetically), keyed
+// by the same epoch-ms x value the weekly overwhelm dataset plots. Reasons
+// don't average, so weekly mode summarizes rather than showing every tag.
+const overwhelmWeeklyTopTags = computed<Record<number, string>>(() => {
+  const countsByWeek = new Map<number, Map<string, number>>()
+  for (const entry of props.overwhelmEntries) {
+    if (!entry.tags.length) {
+      continue
+    }
+    const weekStart = startOfWeek(toLocalDate(entry.day), { weekStartsOn: 1 }).getTime()
+    const counts = countsByWeek.get(weekStart) ?? new Map<string, number>()
+    for (const tag of entry.tags) {
+      counts.set(tag.name, (counts.get(tag.name) ?? 0) + 1)
+    }
+    countsByWeek.set(weekStart, counts)
+  }
+
+  const map: Record<number, string> = {}
+  for (const [weekStart, counts] of countsByWeek) {
+    map[weekStart] = Array.from(counts.entries())
+      .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+      .slice(0, 3)
+      .map(([name, count]) => `${name} ×${count}`)
+      .join(' · ')
+  }
+  return map
+})
+
 const chartData = computed(() => {
   if (metricMode.value === 'overwhelm') {
     const data = viewMode.value === 'weekly'
@@ -299,7 +342,17 @@ const chartOptions = computed(() => ({
       borderWidth: 1,
       padding: 8,
       cornerRadius: 6,
-      displayColors: false
+      displayColors: false,
+      callbacks: {
+        footer: (items: { parsed: { x: number | null } }[]) => {
+          const x = items[0]?.parsed.x
+          if (metricMode.value !== 'overwhelm' || x == null) {
+            return undefined
+          }
+          const tags = viewMode.value === 'weekly' ? overwhelmWeeklyTopTags.value[x] : overwhelmDailyTagNames.value[x]
+          return tags || undefined
+        }
+      }
     }
   }
 }))

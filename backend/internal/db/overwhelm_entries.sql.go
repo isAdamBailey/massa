@@ -12,11 +12,17 @@ import (
 )
 
 const listOverwhelmEntries = `-- name: ListOverwhelmEntries :many
-SELECT id, user_id, day, overwhelm_level, created_at, updated_at FROM overwhelm_entries
-WHERE user_id = $1
-  AND ($2::date IS NULL OR day >= $2)
-  AND ($3::date IS NULL OR day <= $3)
-ORDER BY day ASC
+SELECT
+    e.id, e.user_id, e.day, e.overwhelm_level, e.created_at, e.updated_at,
+    COALESCE((SELECT array_agg(t.name ORDER BY t.name) FROM overwhelm_entry_tags et
+              JOIN overwhelm_tags t ON t.id = et.tag_id WHERE et.entry_id = e.id), '{}')::text[] AS tag_names,
+    COALESCE((SELECT array_agg(t.id::text ORDER BY t.name) FROM overwhelm_entry_tags et
+              JOIN overwhelm_tags t ON t.id = et.tag_id WHERE et.entry_id = e.id), '{}')::text[] AS tag_ids
+FROM overwhelm_entries e
+WHERE e.user_id = $1
+  AND ($2::date IS NULL OR e.day >= $2)
+  AND ($3::date IS NULL OR e.day <= $3)
+ORDER BY e.day ASC
 `
 
 type ListOverwhelmEntriesParams struct {
@@ -25,15 +31,26 @@ type ListOverwhelmEntriesParams struct {
 	To     pgtype.Date `json:"to"`
 }
 
-func (q *Queries) ListOverwhelmEntries(ctx context.Context, arg ListOverwhelmEntriesParams) ([]OverwhelmEntry, error) {
+type ListOverwhelmEntriesRow struct {
+	ID             pgtype.UUID        `json:"id"`
+	UserID         pgtype.UUID        `json:"user_id"`
+	Day            pgtype.Date        `json:"day"`
+	OverwhelmLevel int16              `json:"overwhelm_level"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
+	TagNames       []string           `json:"tag_names"`
+	TagIds         []string           `json:"tag_ids"`
+}
+
+func (q *Queries) ListOverwhelmEntries(ctx context.Context, arg ListOverwhelmEntriesParams) ([]ListOverwhelmEntriesRow, error) {
 	rows, err := q.db.Query(ctx, listOverwhelmEntries, arg.UserID, arg.From, arg.To)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []OverwhelmEntry
+	var items []ListOverwhelmEntriesRow
 	for rows.Next() {
-		var i OverwhelmEntry
+		var i ListOverwhelmEntriesRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.UserID,
@@ -41,6 +58,8 @@ func (q *Queries) ListOverwhelmEntries(ctx context.Context, arg ListOverwhelmEnt
 			&i.OverwhelmLevel,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.TagNames,
+			&i.TagIds,
 		); err != nil {
 			return nil, err
 		}
@@ -53,22 +72,58 @@ func (q *Queries) ListOverwhelmEntries(ctx context.Context, arg ListOverwhelmEnt
 }
 
 const upsertOverwhelmByDay = `-- name: UpsertOverwhelmByDay :one
-INSERT INTO overwhelm_entries (user_id, day, overwhelm_level)
-VALUES ($1, $2, $3)
-ON CONFLICT (user_id, day)
-DO UPDATE SET overwhelm_level = excluded.overwhelm_level, updated_at = now()
-RETURNING id, user_id, day, overwhelm_level, created_at, updated_at
+WITH entry AS (
+    INSERT INTO overwhelm_entries (user_id, day, overwhelm_level)
+    VALUES ($1, $2, $3)
+    ON CONFLICT (user_id, day)
+    DO UPDATE SET overwhelm_level = excluded.overwhelm_level, updated_at = now()
+    RETURNING id, user_id, day, overwhelm_level, created_at, updated_at
+), cleared AS (
+    DELETE FROM overwhelm_entry_tags
+    WHERE entry_id = (SELECT id FROM entry)
+      AND tag_id <> ALL($4::uuid[])
+), inserted AS (
+    INSERT INTO overwhelm_entry_tags (entry_id, tag_id)
+    SELECT (SELECT id FROM entry), t.id
+    FROM overwhelm_tags t
+    WHERE t.user_id = $1 AND t.id = ANY($4::uuid[])
+    ON CONFLICT DO NOTHING
+)
+SELECT
+    entry.id, entry.user_id, entry.day, entry.overwhelm_level, entry.created_at, entry.updated_at,
+    COALESCE((SELECT array_agg(t.name ORDER BY t.name) FROM overwhelm_entry_tags et
+              JOIN overwhelm_tags t ON t.id = et.tag_id WHERE et.entry_id = entry.id), '{}')::text[] AS tag_names,
+    COALESCE((SELECT array_agg(t.id::text ORDER BY t.name) FROM overwhelm_entry_tags et
+              JOIN overwhelm_tags t ON t.id = et.tag_id WHERE et.entry_id = entry.id), '{}')::text[] AS tag_ids
+FROM entry
 `
 
 type UpsertOverwhelmByDayParams struct {
-	UserID         pgtype.UUID `json:"user_id"`
-	Day            pgtype.Date `json:"day"`
-	OverwhelmLevel int16       `json:"overwhelm_level"`
+	UserID         pgtype.UUID   `json:"user_id"`
+	Day            pgtype.Date   `json:"day"`
+	OverwhelmLevel int16         `json:"overwhelm_level"`
+	TagIds         []pgtype.UUID `json:"tag_ids"`
 }
 
-func (q *Queries) UpsertOverwhelmByDay(ctx context.Context, arg UpsertOverwhelmByDayParams) (OverwhelmEntry, error) {
-	row := q.db.QueryRow(ctx, upsertOverwhelmByDay, arg.UserID, arg.Day, arg.OverwhelmLevel)
-	var i OverwhelmEntry
+type UpsertOverwhelmByDayRow struct {
+	ID             pgtype.UUID        `json:"id"`
+	UserID         pgtype.UUID        `json:"user_id"`
+	Day            pgtype.Date        `json:"day"`
+	OverwhelmLevel int16              `json:"overwhelm_level"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
+	TagNames       []string           `json:"tag_names"`
+	TagIds         []string           `json:"tag_ids"`
+}
+
+func (q *Queries) UpsertOverwhelmByDay(ctx context.Context, arg UpsertOverwhelmByDayParams) (UpsertOverwhelmByDayRow, error) {
+	row := q.db.QueryRow(ctx, upsertOverwhelmByDay,
+		arg.UserID,
+		arg.Day,
+		arg.OverwhelmLevel,
+		arg.TagIds,
+	)
+	var i UpsertOverwhelmByDayRow
 	err := row.Scan(
 		&i.ID,
 		&i.UserID,
@@ -76,6 +131,8 @@ func (q *Queries) UpsertOverwhelmByDay(ctx context.Context, arg UpsertOverwhelmB
 		&i.OverwhelmLevel,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.TagNames,
+		&i.TagIds,
 	)
 	return i, err
 }

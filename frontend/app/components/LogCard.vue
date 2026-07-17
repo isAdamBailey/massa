@@ -1,10 +1,15 @@
 <script setup lang="ts">
 const weights = useWeightsStore()
 const overwhelm = useOverwhelmStore()
+const overwhelmTags = useOverwhelmTagsStore()
 const settings = useSettingsStore()
 const google = useGoogleHealthStore()
 const { lbToKg } = useBmi()
 const { toLocalDate } = useWeeklyAverages()
+
+onMounted(() => {
+  overwhelmTags.fetchTags()
+})
 
 const emit = defineEmits<{ saved: [] }>()
 
@@ -115,11 +120,18 @@ const OVERWHELM_BASELINE = 3
 
 const overwhelmLevel = ref<number | null>(null)
 const overwhelmDate = ref(todayKey())
+const selectedTagIds = ref<string[]>([])
 const overwhelmSubmitting = ref(false)
 const overwhelmJustSaved = ref(false)
 const overwhelmError = ref<string | null>(null)
 
 let overwhelmSavedTimeout: ReturnType<typeof setTimeout> | undefined
+
+function toggleTag(id: string) {
+  selectedTagIds.value = selectedTagIds.value.includes(id)
+    ? selectedTagIds.value.filter(tagId => tagId !== id)
+    : [...selectedTagIds.value, id]
+}
 
 async function onSubmitOverwhelm() {
   overwhelmError.value = null
@@ -136,10 +148,11 @@ async function onSubmitOverwhelm() {
   overwhelmSubmitting.value = true
   try {
     // No Google Health sync here: overwhelm has no counterpart there.
-    const entry = await overwhelm.saveEntry({ day: overwhelmDate.value, overwhelmLevel: overwhelmLevel.value })
+    const entry = await overwhelm.saveEntry({ day: overwhelmDate.value, overwhelmLevel: overwhelmLevel.value, tagIds: selectedTagIds.value })
     if (entry) {
-      // Leave the level selected - it's a rating, not a number field, and
-      // blanking it discards the answer and makes a correction re-tap harder.
+      // Leave the level and tags selected - it's a rating, not a number
+      // field, and blanking it discards the answer and makes a correction
+      // re-tap harder.
       overwhelmDate.value = todayKey()
       clearTimeout(overwhelmSavedTimeout)
       overwhelmJustSaved.value = true
@@ -362,6 +375,39 @@ onUnmounted(() => {
           1 = calm · 3 = your baseline · 10 = most overwhelmed
         </p>
       </div>
+
+      <div v-if="overwhelmTags.tags.length">
+        <span
+          id="overwhelm-tags-label"
+          class="mb-1.5 block text-label text-fog"
+        >Why? (optional)</span>
+        <div
+          role="group"
+          aria-labelledby="overwhelm-tags-label"
+          class="flex flex-wrap gap-1"
+        >
+          <button
+            v-for="tag in overwhelmTags.tags"
+            :key="tag.id"
+            type="button"
+            :aria-pressed="selectedTagIds.includes(tag.id)"
+            class="rounded-sm px-3 py-1.5 text-label transition-colors duration-150"
+            :class="selectedTagIds.includes(tag.id) ? 'bg-verdigris text-carbon' : 'bg-graphite text-mist hover:bg-graphite-hover'"
+            @click="toggleTag(tag.id)"
+          >
+            {{ tag.name }}
+          </button>
+        </div>
+      </div>
+      <p
+        v-else
+        class="text-label text-fog"
+      >
+        <NuxtLink
+          to="/settings"
+          class="underline hover:text-mist"
+        >Add tags in Settings</NuxtLink> to describe why, if you want to.
+      </p>
 
       <div class="flex items-stretch gap-2">
         <div class="min-w-0 flex-1">

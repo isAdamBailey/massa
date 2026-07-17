@@ -11,8 +11,10 @@ import (
 )
 
 type Querier interface {
+	ArchiveOverwhelmTag(ctx context.Context, arg ArchiveOverwhelmTagParams) (int64, error)
 	CountRecentMagicLinkTokensForEmail(ctx context.Context, userEmail string) (int64, error)
 	CreateMagicLinkToken(ctx context.Context, arg CreateMagicLinkTokenParams) (MagicLinkToken, error)
+	CreateOrUnarchiveOverwhelmTag(ctx context.Context, arg CreateOrUnarchiveOverwhelmTagParams) (OverwhelmTag, error)
 	CreateSession(ctx context.Context, arg CreateSessionParams) (Session, error)
 	CreateUser(ctx context.Context, email string) (User, error)
 	CreateWeightEntry(ctx context.Context, arg CreateWeightEntryParams) (WeightEntry, error)
@@ -34,10 +36,12 @@ type Querier interface {
 	IsEmailAllowed(ctx context.Context, email string) (bool, error)
 	ListActiveEnergyEntries(ctx context.Context, arg ListActiveEnergyEntriesParams) ([]ActiveEnergyEntry, error)
 	ListAllowedEmails(ctx context.Context) ([]string, error)
-	ListOverwhelmEntries(ctx context.Context, arg ListOverwhelmEntriesParams) ([]OverwhelmEntry, error)
+	ListOverwhelmEntries(ctx context.Context, arg ListOverwhelmEntriesParams) ([]ListOverwhelmEntriesRow, error)
+	ListOverwhelmTags(ctx context.Context, userID pgtype.UUID) ([]OverwhelmTag, error)
 	ListUnsyncedManualWeightEntries(ctx context.Context, userID pgtype.UUID) ([]WeightEntry, error)
 	ListWeightEntries(ctx context.Context, arg ListWeightEntriesParams) ([]WeightEntry, error)
 	MarkMagicLinkTokenUsed(ctx context.Context, id pgtype.UUID) error
+	RenameOverwhelmTag(ctx context.Context, arg RenameOverwhelmTagParams) (OverwhelmTag, error)
 	UpdateLastLoginAt(ctx context.Context, id pgtype.UUID) error
 	UpdateSyncWatermarks(ctx context.Context, arg UpdateSyncWatermarksParams) error
 	UpdateUserSettings(ctx context.Context, arg UpdateUserSettingsParams) (User, error)
@@ -48,7 +52,7 @@ type Querier interface {
 	UpsertGoogleOAuthCredentials(ctx context.Context, arg UpsertGoogleOAuthCredentialsParams) (GoogleOauthCredential, error)
 	UpsertHeightEntryByGoogleID(ctx context.Context, arg UpsertHeightEntryByGoogleIDParams) (HeightEntry, error)
 	UpsertHeightEntryByRecordedAt(ctx context.Context, arg UpsertHeightEntryByRecordedAtParams) (HeightEntry, error)
-	UpsertOverwhelmByDay(ctx context.Context, arg UpsertOverwhelmByDayParams) (OverwhelmEntry, error)
+	UpsertOverwhelmByDay(ctx context.Context, arg UpsertOverwhelmByDayParams) (UpsertOverwhelmByDayRow, error)
 	UpsertSyncMetadata(ctx context.Context, userID pgtype.UUID) (SyncMetadatum, error)
 	UpsertWeightEntryByGoogleID(ctx context.Context, arg UpsertWeightEntryByGoogleIDParams) (WeightEntry, error)
 	UpsertWeightEntryByRecordedAt(ctx context.Context, arg UpsertWeightEntryByRecordedAtParams) (WeightEntry, error)

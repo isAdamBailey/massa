@@ -73,6 +73,11 @@ func (h *Handler) Register(r chi.Router) {
 			r.Get("/overwhelm", h.listOverwhelm)
 			r.With(h.requireCSRF).Put("/overwhelm", h.upsertOverwhelm)
 
+			r.Get("/overwhelm/tags", h.listOverwhelmTags)
+			r.With(h.requireCSRF).Post("/overwhelm/tags", h.createOverwhelmTag)
+			r.With(h.requireCSRF).Patch("/overwhelm/tags/{id}", h.renameOverwhelmTag)
+			r.With(h.requireCSRF).Delete("/overwhelm/tags/{id}", h.archiveOverwhelmTag)
+
 			if h.google != nil {
 				r.Get("/google/auth-url", h.googleAuthURL)
 				r.Get("/google/callback", h.googleCallback)

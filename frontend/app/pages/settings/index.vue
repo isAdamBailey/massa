@@ -1,8 +1,10 @@
 <script setup lang="ts">
+import type { OverwhelmTag } from '~/stores/overwhelmTags'
 import type { UnitsPreference } from '~/stores/settings'
 
 const google = useGoogleHealthStore()
 const settings = useSettingsStore()
+const overwhelmTags = useOverwhelmTagsStore()
 const { cmToIn, inToCm } = useBmi()
 const route = useRoute()
 const router = useRouter()
@@ -14,7 +16,7 @@ const saveError = ref<string | null>(null)
 const saved = ref(false)
 
 onMounted(async () => {
-  await Promise.all([google.fetchStatus(), settings.fetchSettings()])
+  await Promise.all([google.fetchStatus(), settings.fetchSettings(), overwhelmTags.fetchTags()])
 
   if (route.query.google === 'connected') {
     await router.replace({ query: {} })
@@ -60,6 +62,51 @@ async function onSaveSettings() {
   } finally {
     saving.value = false
   }
+}
+
+// --- Overwhelm tag vocabulary ---
+
+const newTagName = ref('')
+const editingTagId = ref<string | null>(null)
+const editingTagName = ref('')
+
+function startEditTag(tag: OverwhelmTag) {
+  editingTagId.value = tag.id
+  editingTagName.value = tag.name
+}
+
+function cancelEditTag() {
+  editingTagId.value = null
+  editingTagName.value = ''
+}
+
+async function onCreateTag() {
+  const name = newTagName.value.trim()
+  if (!name) {
+    return
+  }
+  const tag = await overwhelmTags.createTag(name)
+  if (tag) {
+    newTagName.value = ''
+  }
+}
+
+async function onRenameTag(id: string) {
+  const name = editingTagName.value.trim()
+  if (!name) {
+    return
+  }
+  const tag = await overwhelmTags.renameTag(id, name)
+  if (tag) {
+    cancelEditTag()
+  }
+}
+
+async function onArchiveTag(id: string) {
+  if (editingTagId.value === id) {
+    cancelEditTag()
+  }
+  await overwhelmTags.archiveTag(id)
 }
 </script>
 
@@ -220,6 +267,108 @@ async function onSaveSettings() {
             </template>
           </div>
         </template>
+      </section>
+
+      <section class="space-y-3 rounded-md bg-slate p-5">
+        <h2 class="text-title font-sans">
+          Overwhelm tags
+        </h2>
+        <p class="text-body text-fog">
+          Keywords you can attach to an overwhelm entry to describe why.
+          Removing a tag keeps it on any day it was already logged.
+        </p>
+
+        <ul
+          v-if="overwhelmTags.tags.length"
+          class="space-y-2"
+        >
+          <li
+            v-for="tag in overwhelmTags.tags"
+            :key="tag.id"
+            class="flex items-center gap-2"
+          >
+            <input
+              v-if="editingTagId === tag.id"
+              v-model="editingTagName"
+              type="text"
+              maxlength="30"
+              class="min-w-0 flex-1 rounded-sm bg-graphite px-3 py-2 text-body text-mist"
+              @keyup.enter="onRenameTag(tag.id)"
+              @keyup.esc="cancelEditTag"
+            >
+            <span
+              v-else
+              class="min-w-0 flex-1 text-body text-mist"
+            >
+              {{ tag.name }}
+            </span>
+
+            <template v-if="editingTagId === tag.id">
+              <button
+                type="button"
+                class="shrink-0 rounded-sm bg-verdigris px-3 py-1.5 text-label text-carbon transition-colors duration-150 hover:bg-verdigris-hover"
+                @click="onRenameTag(tag.id)"
+              >
+                Save
+              </button>
+              <button
+                type="button"
+                class="shrink-0 rounded-sm bg-graphite px-3 py-1.5 text-label text-mist transition-colors duration-150 hover:bg-graphite-hover"
+                @click="cancelEditTag"
+              >
+                Cancel
+              </button>
+            </template>
+            <template v-else>
+              <button
+                type="button"
+                class="shrink-0 rounded-sm bg-graphite px-3 py-1.5 text-label text-mist transition-colors duration-150 hover:bg-graphite-hover"
+                @click="startEditTag(tag)"
+              >
+                Rename
+              </button>
+              <button
+                type="button"
+                class="shrink-0 rounded-sm px-3 py-1.5 text-label text-ember transition-colors duration-150 hover:bg-graphite"
+                @click="onArchiveTag(tag.id)"
+              >
+                Remove
+              </button>
+            </template>
+          </li>
+        </ul>
+        <p
+          v-else
+          class="text-body text-fog"
+        >
+          No tags yet.
+        </p>
+
+        <form
+          class="flex gap-2"
+          @submit.prevent="onCreateTag"
+        >
+          <input
+            v-model="newTagName"
+            type="text"
+            placeholder="New tag"
+            maxlength="30"
+            class="min-w-0 flex-1 rounded-sm bg-graphite px-3 py-2 text-body text-mist placeholder:text-[oklch(0.70_0.01_170)]"
+          >
+          <button
+            type="submit"
+            class="shrink-0 rounded-sm bg-verdigris px-4 py-2 text-label text-carbon transition-colors duration-150 hover:bg-verdigris-hover"
+          >
+            Add
+          </button>
+        </form>
+
+        <p
+          v-if="overwhelmTags.error"
+          class="text-body text-ember"
+        >
+          {{ overwhelmTags.error }}
+        </p>
       </section>
     </div>
   </div>

@@ -1,11 +1,18 @@
+export interface OverwhelmEntryTag {
+  id: string
+  name: string
+}
+
 export interface OverwhelmEntry {
   day: string
   overwhelmLevel: number
+  tags: OverwhelmEntryTag[]
 }
 
 interface OverwhelmEntryInput {
   day: string
   overwhelmLevel: number
+  tagIds?: string[]
 }
 
 export const useOverwhelmStore = defineStore('overwhelm', () => {
