@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { WeightEntry } from '~/stores/weights'
+import { toDateTimeLocalInput } from '~/composables/useLocalDateInput'
 
 const weights = useWeightsStore()
 const settings = useSettingsStore()
@@ -31,18 +32,12 @@ function formatDateTime(value: string): string {
   return new Date(value).toLocaleString()
 }
 
-function toDateTimeInput(value: string): string {
-  const date = new Date(value)
-  const pad = (n: number) => String(n).padStart(2, '0')
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`
-}
-
 function startEdit(entry: WeightEntry) {
   editingId.value = entry.id
   rowError.value = null
   const weight = settings.settings.unitsPreference === 'imperial' ? kgToLb(entry.weightKg) : entry.weightKg
   editWeightInput.value = weight.toFixed(1)
-  editDateInput.value = toDateTimeInput(entry.recordedAt)
+  editDateInput.value = toDateTimeLocalInput(entry.recordedAt)
 }
 
 function cancelEdit() {

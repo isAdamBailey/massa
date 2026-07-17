@@ -1,6 +1,6 @@
 ---
 name: Massa
-description: A calm, private instrument panel for tracking weight and BMI over time
+description: A calm, private instrument panel for tracking weight, BMI, and other personal metrics over time
 colors:
   carbon: "oklch(0.16 0 0)"
   slate: "oklch(0.22 0.005 170)"
@@ -161,9 +161,15 @@ screen: the primary action, the active toggle, or the live data series —
 never all three competing at once, and never as decoration (icon tints,
 section headers, borders).
 
-**The Numbers Don't Judge Rule.** Weight, BMI, and trend lines are always
-Mist or Verdigris, regardless of whether the number went up or down. Ember is
-reserved for system/form errors — never for "you gained weight" framing.
+**The Numbers Don't Judge Rule.** Weight, BMI, trend lines, and subjective
+ratings are always Mist or Verdigris, regardless of whether the number went
+up or down, or which direction is "good". This extends to directional and
+subjective metrics: a 10 on the overwhelm scale renders in exactly the same
+Verdigris as a 1 — no amber or ember bands at the high end, no gradient
+across the scale, no green-to-red run. A hard day is data, not a failure
+state. Reference lines (the overwhelm baseline of 3) are drawn in Fog:
+present, quiet, uncoloured. Ember is reserved for system/form errors —
+never for "you gained weight" or "you had a bad day" framing.
 
 ## 3. Typography
 

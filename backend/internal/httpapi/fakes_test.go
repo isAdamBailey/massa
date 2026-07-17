@@ -2,6 +2,8 @@ package httpapi_test
 
 import (
 	"context"
+	"sort"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -11,6 +13,7 @@ import (
 	"github.com/isAdamBailey/massa/backend/internal/activeenergy"
 	"github.com/isAdamBailey/massa/backend/internal/bmi"
 	"github.com/isAdamBailey/massa/backend/internal/db"
+	"github.com/isAdamBailey/massa/backend/internal/overwhelm"
 	"github.com/isAdamBailey/massa/backend/internal/users"
 	"github.com/isAdamBailey/massa/backend/internal/weights"
 )
@@ -180,6 +183,142 @@ func newFakeActiveEnergyService() *fakeActiveEnergyService {
 
 func (f *fakeActiveEnergyService) List(_ context.Context, _ uuid.UUID, _, _ *time.Time) ([]activeenergy.Entry, error) {
 	return f.entries, nil
+}
+
+// overwhelmKey identifies an overwhelm entry the way the database does: by
+// user and day.
+type overwhelmKey struct {
+	userID uuid.UUID
+	day    string
+}
+
+// fakeOverwhelmTag tracks ownership and archived state alongside the
+// domain overwhelm.Tag, which carries neither.
+type fakeOverwhelmTag struct {
+	tag      overwhelm.Tag
+	userID   uuid.UUID
+	archived bool
+}
+
+// fakeOverwhelmService is an in-memory implementation of
+// httpapi.OverwhelmService.
+type fakeOverwhelmService struct {
+	entries   map[overwhelmKey]overwhelm.Entry
+	tags      map[uuid.UUID]fakeOverwhelmTag
+	entryTags map[uuid.UUID]map[uuid.UUID]bool // entry id -> set of tag ids
+}
+
+func newFakeOverwhelmService() *fakeOverwhelmService {
+	return &fakeOverwhelmService{
+		entries:   make(map[overwhelmKey]overwhelm.Entry),
+		tags:      make(map[uuid.UUID]fakeOverwhelmTag),
+		entryTags: make(map[uuid.UUID]map[uuid.UUID]bool),
+	}
+}
+
+func (f *fakeOverwhelmService) tagsForEntry(entryID uuid.UUID) []overwhelm.EntryTag {
+	var tags []overwhelm.EntryTag
+	for tagID := range f.entryTags[entryID] {
+		t := f.tags[tagID]
+		tags = append(tags, overwhelm.EntryTag{ID: t.tag.ID, Name: t.tag.Name})
+	}
+	sort.Slice(tags, func(i, j int) bool { return tags[i].Name < tags[j].Name })
+	return tags
+}
+
+func (f *fakeOverwhelmService) List(_ context.Context, userID uuid.UUID, from, to *time.Time) ([]overwhelm.Entry, error) {
+	var entries []overwhelm.Entry
+	for k, e := range f.entries {
+		if k.userID != userID {
+			continue
+		}
+		if from != nil && e.Day.Before(*from) {
+			continue
+		}
+		if to != nil && e.Day.After(*to) {
+			continue
+		}
+		e.Tags = f.tagsForEntry(e.ID)
+		entries = append(entries, e)
+	}
+	sort.Slice(entries, func(i, j int) bool { return entries[i].Day.Before(entries[j].Day) })
+	return entries, nil
+}
+
+func (f *fakeOverwhelmService) Upsert(_ context.Context, userID uuid.UUID, day time.Time, level int, tagIDs []uuid.UUID) (overwhelm.Entry, error) {
+	key := overwhelmKey{userID: userID, day: day.Format("2006-01-02")}
+	now := time.Now()
+	entry, ok := f.entries[key]
+	if !ok {
+		entry = overwhelm.Entry{ID: uuid.New(), Day: day, CreatedAt: now}
+	}
+	entry.OverwhelmLevel = level
+	entry.UpdatedAt = now
+	f.entries[key] = entry
+
+	wanted := make(map[uuid.UUID]bool, len(tagIDs))
+	for _, id := range tagIDs {
+		if t, ok := f.tags[id]; ok && t.userID == userID {
+			wanted[id] = true
+		}
+	}
+	f.entryTags[entry.ID] = wanted
+	entry.Tags = f.tagsForEntry(entry.ID)
+	return entry, nil
+}
+
+func (f *fakeOverwhelmService) ListTags(_ context.Context, userID uuid.UUID) ([]overwhelm.Tag, error) {
+	var tags []overwhelm.Tag
+	for _, t := range f.tags {
+		if t.userID != userID || t.archived {
+			continue
+		}
+		tags = append(tags, t.tag)
+	}
+	sort.Slice(tags, func(i, j int) bool { return tags[i].Name < tags[j].Name })
+	return tags, nil
+}
+
+func (f *fakeOverwhelmService) CreateTag(_ context.Context, userID uuid.UUID, name string) (overwhelm.Tag, error) {
+	for id, t := range f.tags {
+		if t.userID == userID && strings.EqualFold(t.tag.Name, name) {
+			t.tag.Name = name
+			t.archived = false
+			f.tags[id] = t
+			return t.tag, nil
+		}
+	}
+	tag := overwhelm.Tag{ID: uuid.New(), Name: name}
+	f.tags[tag.ID] = fakeOverwhelmTag{tag: tag, userID: userID}
+	return tag, nil
+}
+
+func (f *fakeOverwhelmService) RenameTag(_ context.Context, userID, id uuid.UUID, name string) (overwhelm.Tag, error) {
+	t, ok := f.tags[id]
+	if !ok || t.userID != userID || t.archived {
+		return overwhelm.Tag{}, overwhelm.ErrNotFound
+	}
+	for otherID, other := range f.tags {
+		if otherID == id || other.archived || other.userID != userID {
+			continue
+		}
+		if strings.EqualFold(other.tag.Name, name) {
+			return overwhelm.Tag{}, overwhelm.ErrDuplicateTag
+		}
+	}
+	t.tag.Name = name
+	f.tags[id] = t
+	return t.tag, nil
+}
+
+func (f *fakeOverwhelmService) ArchiveTag(_ context.Context, userID, id uuid.UUID) error {
+	t, ok := f.tags[id]
+	if !ok || t.userID != userID || t.archived {
+		return overwhelm.ErrNotFound
+	}
+	t.archived = true
+	f.tags[id] = t
+	return nil
 }
 
 // fakeWeightsService is an in-memory implementation of httpapi.WeightsService.

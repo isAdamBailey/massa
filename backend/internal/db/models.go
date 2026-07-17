@@ -56,6 +56,29 @@ type MagicLinkToken struct {
 	CreatedAt pgtype.Timestamptz `json:"created_at"`
 }
 
+type OverwhelmEntry struct {
+	ID             pgtype.UUID        `json:"id"`
+	UserID         pgtype.UUID        `json:"user_id"`
+	Day            pgtype.Date        `json:"day"`
+	OverwhelmLevel int16              `json:"overwhelm_level"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
+}
+
+type OverwhelmEntryTag struct {
+	EntryID pgtype.UUID `json:"entry_id"`
+	TagID   pgtype.UUID `json:"tag_id"`
+}
+
+type OverwhelmTag struct {
+	ID         pgtype.UUID        `json:"id"`
+	UserID     pgtype.UUID        `json:"user_id"`
+	Name       string             `json:"name"`
+	ArchivedAt pgtype.Timestamptz `json:"archived_at"`
+	CreatedAt  pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt  pgtype.Timestamptz `json:"updated_at"`
+}
+
 type Session struct {
 	ID        pgtype.UUID        `json:"id"`
 	UserID    pgtype.UUID        `json:"user_id"`

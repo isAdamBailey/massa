@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import 'chartjs-adapter-date-fns'
+import { startOfWeek } from 'date-fns'
 import {
   BarController,
   BarElement,
@@ -14,7 +15,10 @@ import {
 import type { Plugin } from 'chart.js'
 import { Bar, Line } from 'vue-chartjs'
 import { BMI_BOUNDARIES } from '~/composables/useBmi'
+import { OVERWHELM_BASELINE } from '~/composables/useOverwhelm'
+import type { SegmentedOption } from '~/components/SegmentedControl.vue'
 import type { ActiveEnergyEntry } from '~/stores/activeEnergy'
+import type { OverwhelmEntry } from '~/stores/overwhelm'
 import type { UnitsPreference } from '~/stores/settings'
 import type { WeightEntry } from '~/stores/weights'
 
@@ -23,17 +27,30 @@ ChartJS.register(LineController, LineElement, PointElement, BarController, BarEl
 const props = defineProps<{
   entries: WeightEntry[]
   activeEnergyEntries: ActiveEnergyEntry[]
+  overwhelmEntries: OverwhelmEntry[]
   unitsPreference: UnitsPreference
 }>()
 
 const { kgToLb, category } = useBmi()
-const { computeWeeklyAverageBy, computeWeeklyAverages, computeWeeklySumBy } = useWeeklyAverages()
+const { computeWeeklyAverageBy, computeWeeklyAverages, computeWeeklySumBy, toLocalDate } = useWeeklyAverages()
 
 type ViewMode = 'daily' | 'weekly'
-type MetricMode = 'weight' | 'bmi' | 'energy'
+type MetricMode = 'weight' | 'bmi' | 'energy' | 'overwhelm'
 
 const viewMode = defineModel<ViewMode>('viewMode', { default: 'weekly' })
 const metricMode = defineModel<MetricMode>('metricMode', { default: 'weight' })
+
+const metricOptions: SegmentedOption<MetricMode>[] = [
+  { value: 'weight', label: 'Weight' },
+  { value: 'bmi', label: 'BMI' },
+  { value: 'energy', label: 'Active energy' },
+  { value: 'overwhelm', label: 'Overwhelm' }
+]
+
+const viewOptions: SegmentedOption<ViewMode>[] = [
+  { value: 'daily', label: 'Daily' },
+  { value: 'weekly', label: 'Weekly' }
+]
 
 const VERDIGRIS = 'oklch(0.70 0.09 170)'
 const FOG = 'oklch(0.64 0.01 170)'
@@ -142,11 +159,107 @@ const bmiZonesPlugin: Plugin<'line'> = {
   }
 }
 
+const overwhelmBaselinePlugin: Plugin<'line'> = {
+  id: 'overwhelmBaseline',
+  beforeDraw(chart) {
+    if (metricMode.value !== 'overwhelm') {
+      return
+    }
+    const { ctx, chartArea, scales } = chart
+    const yScale = scales.y
+    if (!yScale) {
+      return
+    }
+
+    const y = yScale.getPixelForValue(OVERWHELM_BASELINE)
+
+    ctx.save()
+    ctx.strokeStyle = FOG
+    ctx.globalAlpha = 0.5
+    ctx.lineWidth = 1
+    ctx.setLineDash([4, 4])
+    ctx.beginPath()
+    ctx.moveTo(chartArea.left, y)
+    ctx.lineTo(chartArea.right, y)
+    ctx.stroke()
+
+    ctx.setLineDash([])
+    ctx.globalAlpha = 1
+    ctx.fillStyle = FOG
+    ctx.font = '500 11px "IBM Plex Sans", sans-serif'
+    ctx.textAlign = 'right'
+    ctx.textBaseline = 'bottom'
+    ctx.fillText('Baseline', chartArea.right - 6, y - 4)
+    ctx.restore()
+  }
+}
+
+// Tag names per day, keyed by the same epoch-ms x value the daily overwhelm
+// dataset plots, so the tooltip can look a point's tags up by its x.
+const overwhelmDailyTagNames = computed<Record<number, string>>(() => {
+  const map: Record<number, string> = {}
+  for (const entry of props.overwhelmEntries) {
+    if (!entry.tags.length) {
+      continue
+    }
+    const x = toLocalDate(entry.day).getTime()
+    map[x] = entry.tags.map(t => t.name).sort((a, b) => a.localeCompare(b)).join(' · ')
+  }
+  return map
+})
+
+// The top 3 tags by frequency per week (ties broken alphabetically), keyed
+// by the same epoch-ms x value the weekly overwhelm dataset plots. Reasons
+// don't average, so weekly mode summarizes rather than showing every tag.
+const overwhelmWeeklyTopTags = computed<Record<number, string>>(() => {
+  const countsByWeek = new Map<number, Map<string, number>>()
+  for (const entry of props.overwhelmEntries) {
+    if (!entry.tags.length) {
+      continue
+    }
+    const weekStart = startOfWeek(toLocalDate(entry.day), { weekStartsOn: 1 }).getTime()
+    const counts = countsByWeek.get(weekStart) ?? new Map<string, number>()
+    for (const tag of entry.tags) {
+      counts.set(tag.name, (counts.get(tag.name) ?? 0) + 1)
+    }
+    countsByWeek.set(weekStart, counts)
+  }
+
+  const map: Record<number, string> = {}
+  for (const [weekStart, counts] of countsByWeek) {
+    map[weekStart] = Array.from(counts.entries())
+      .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+      .slice(0, 3)
+      .map(([name, count]) => `${name} ×${count}`)
+      .join(' · ')
+  }
+  return map
+})
+
 const chartData = computed(() => {
+  if (metricMode.value === 'overwhelm') {
+    const data = viewMode.value === 'weekly'
+      ? computeWeeklyAverageBy(props.overwhelmEntries, e => e.day, e => e.overwhelmLevel).map(w => ({ x: toLocalDate(w.weekStart).getTime(), y: w.average }))
+      : props.overwhelmEntries.map(e => ({ x: toLocalDate(e.day).getTime(), y: e.overwhelmLevel }))
+
+    return {
+      datasets: [
+        {
+          label: viewMode.value === 'weekly' ? 'Weekly avg overwhelm' : 'Overwhelm',
+          data,
+          borderColor: VERDIGRIS,
+          backgroundColor: VERDIGRIS,
+          tension: 0.2,
+          pointRadius: 3
+        }
+      ]
+    }
+  }
+
   if (metricMode.value === 'energy') {
     const data = viewMode.value === 'weekly'
-      ? computeWeeklySumBy(props.activeEnergyEntries, e => e.day, e => e.activeEnergyKcal).map(w => ({ x: new Date(w.weekStart).getTime(), y: w.total }))
-      : props.activeEnergyEntries.map(e => ({ x: new Date(e.day).getTime(), y: e.activeEnergyKcal }))
+      ? computeWeeklySumBy(props.activeEnergyEntries, e => e.day, e => e.activeEnergyKcal).map(w => ({ x: toLocalDate(w.weekStart).getTime(), y: w.total }))
+      : props.activeEnergyEntries.map(e => ({ x: toLocalDate(e.day).getTime(), y: e.activeEnergyKcal }))
 
     return {
       datasets: [
@@ -162,7 +275,7 @@ const chartData = computed(() => {
 
   if (metricMode.value === 'bmi') {
     const data = viewMode.value === 'weekly'
-      ? computeWeeklyAverageBy(props.entries, e => e.bmi).map(w => ({ x: new Date(w.weekStart).getTime(), y: w.average }))
+      ? computeWeeklyAverageBy(props.entries, e => e.recordedAt, e => e.bmi).map(w => ({ x: new Date(w.weekStart).getTime(), y: w.average }))
       : props.entries.filter(e => e.bmi != null).map(e => ({ x: new Date(e.recordedAt).getTime(), y: e.bmi as number }))
 
     return {
@@ -212,15 +325,22 @@ const chartOptions = computed(() => ({
       ticks: { color: FOG },
       grid: { color: HAIRLINE }
     },
-    y: {
-      beginAtZero: metricMode.value === 'energy',
-      grace: '5%',
-      ...(metricMode.value === 'bmi' && latestBmiEntry.value
-        ? { suggestedMin: (latestBmiEntry.value.bmi as number) - 1, suggestedMax: (latestBmiEntry.value.bmi as number) + 1 }
-        : {}),
-      ticks: { color: FOG },
-      grid: { color: HAIRLINE }
-    }
+    y: metricMode.value === 'overwhelm'
+      ? {
+          min: 1,
+          max: 10,
+          ticks: { stepSize: 1, color: FOG },
+          grid: { color: HAIRLINE }
+        }
+      : {
+          beginAtZero: metricMode.value === 'energy',
+          grace: '5%',
+          ...(metricMode.value === 'bmi' && latestBmiEntry.value
+            ? { suggestedMin: (latestBmiEntry.value.bmi as number) - 1, suggestedMax: (latestBmiEntry.value.bmi as number) + 1 }
+            : {}),
+          ticks: { color: FOG },
+          grid: { color: HAIRLINE }
+        }
   },
   plugins: {
     tooltip: {
@@ -231,7 +351,17 @@ const chartOptions = computed(() => ({
       borderWidth: 1,
       padding: 8,
       cornerRadius: 6,
-      displayColors: false
+      displayColors: false,
+      callbacks: {
+        footer: (items: { parsed: { x: number | null } }[]) => {
+          const x = items[0]?.parsed.x
+          if (metricMode.value !== 'overwhelm' || x == null) {
+            return undefined
+          }
+          const tags = viewMode.value === 'weekly' ? overwhelmWeeklyTopTags.value[x] : overwhelmDailyTagNames.value[x]
+          return tags || undefined
+        }
+      }
     }
   }
 }))
@@ -240,58 +370,16 @@ const chartOptions = computed(() => ({
 <template>
   <div>
     <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
-      <div
-        role="group"
+      <SegmentedControl
+        v-model="metricMode"
+        :options="metricOptions"
         aria-label="Metric"
-        class="flex gap-1 rounded-sm bg-graphite p-1"
-      >
-        <button
-          type="button"
-          class="rounded-sm px-3 py-1.5 text-label transition-colors duration-150"
-          :class="metricMode === 'weight' ? 'bg-verdigris text-carbon' : 'text-mist hover:bg-graphite-hover'"
-          @click="metricMode = 'weight'"
-        >
-          Weight
-        </button>
-        <button
-          type="button"
-          class="rounded-sm px-3 py-1.5 text-label transition-colors duration-150"
-          :class="metricMode === 'bmi' ? 'bg-verdigris text-carbon' : 'text-mist hover:bg-graphite-hover'"
-          @click="metricMode = 'bmi'"
-        >
-          BMI
-        </button>
-        <button
-          type="button"
-          class="rounded-sm px-3 py-1.5 text-label transition-colors duration-150"
-          :class="metricMode === 'energy' ? 'bg-verdigris text-carbon' : 'text-mist hover:bg-graphite-hover'"
-          @click="metricMode = 'energy'"
-        >
-          Active energy
-        </button>
-      </div>
-      <div
-        role="group"
+      />
+      <SegmentedControl
+        v-model="viewMode"
+        :options="viewOptions"
         aria-label="Range"
-        class="flex gap-1 rounded-sm bg-graphite p-1"
-      >
-        <button
-          type="button"
-          class="rounded-sm px-3 py-1.5 text-label transition-colors duration-150"
-          :class="viewMode === 'daily' ? 'bg-verdigris text-carbon' : 'text-mist hover:bg-graphite-hover'"
-          @click="viewMode = 'daily'"
-        >
-          Daily
-        </button>
-        <button
-          type="button"
-          class="rounded-sm px-3 py-1.5 text-label transition-colors duration-150"
-          :class="viewMode === 'weekly' ? 'bg-verdigris text-carbon' : 'text-mist hover:bg-graphite-hover'"
-          @click="viewMode = 'weekly'"
-        >
-          Weekly
-        </button>
-      </div>
+      />
     </div>
     <div class="h-64">
       <p
@@ -303,6 +391,9 @@ const chartOptions = computed(() => ({
         </template>
         <template v-else-if="metricMode === 'energy'">
           No active energy data yet. Connect Google Health to see it here.
+        </template>
+        <template v-else-if="metricMode === 'overwhelm'">
+          No overwhelm entries yet.
         </template>
         <template v-else>
           No weight entries yet.
@@ -317,7 +408,7 @@ const chartOptions = computed(() => ({
         v-else
         :data="chartData"
         :options="chartOptions"
-        :plugins="[bmiZonesPlugin]"
+        :plugins="[bmiZonesPlugin, overwhelmBaselinePlugin]"
       />
     </div>
     <p
@@ -328,6 +419,12 @@ const chartOptions = computed(() => ({
       <template v-if="latestBmiEntry?.bmi != null">
         A dashed line marks your most recent reading: {{ latestBmiEntry.bmi.toFixed(1) }}, {{ category(latestBmiEntry.bmi) }}.
       </template>
+    </p>
+    <p
+      v-if="hasData && metricMode === 'overwhelm'"
+      class="sr-only"
+    >
+      A dashed line marks your baseline of {{ OVERWHELM_BASELINE }} on a 1 to 10 scale, where 10 is most overwhelmed.
     </p>
   </div>
 </template>

@@ -21,6 +21,7 @@ type Handler struct {
 	users        users.Repository
 	weights      WeightsService
 	activeEnergy ActiveEnergyService
+	overwhelm    OverwhelmService
 	cookieSecure bool
 	appBaseURL   string
 	google       *GoogleHealthDeps
@@ -28,12 +29,13 @@ type Handler struct {
 
 // NewHandler constructs a Handler. google may be nil, in which case the
 // /api/google/* routes are not registered.
-func NewHandler(authSvc *auth.Service, userRepo users.Repository, weightsSvc WeightsService, activeEnergySvc ActiveEnergyService, cookieSecure bool, appBaseURL string, google *GoogleHealthDeps) *Handler {
+func NewHandler(authSvc *auth.Service, userRepo users.Repository, weightsSvc WeightsService, activeEnergySvc ActiveEnergyService, overwhelmSvc OverwhelmService, cookieSecure bool, appBaseURL string, google *GoogleHealthDeps) *Handler {
 	return &Handler{
 		auth:         authSvc,
 		users:        userRepo,
 		weights:      weightsSvc,
 		activeEnergy: activeEnergySvc,
+		overwhelm:    overwhelmSvc,
 		cookieSecure: cookieSecure,
 		appBaseURL:   appBaseURL,
 		google:       google,
@@ -67,6 +69,14 @@ func (h *Handler) Register(r chi.Router) {
 			r.Get("/bmi/latest", h.bmiLatest)
 
 			r.Get("/active-energy", h.listActiveEnergy)
+
+			r.Get("/overwhelm", h.listOverwhelm)
+			r.With(h.requireCSRF).Put("/overwhelm", h.upsertOverwhelm)
+
+			r.Get("/overwhelm/tags", h.listOverwhelmTags)
+			r.With(h.requireCSRF).Post("/overwhelm/tags", h.createOverwhelmTag)
+			r.With(h.requireCSRF).Patch("/overwhelm/tags/{id}", h.renameOverwhelmTag)
+			r.With(h.requireCSRF).Delete("/overwhelm/tags/{id}", h.archiveOverwhelmTag)
 
 			if h.google != nil {
 				r.Get("/google/auth-url", h.googleAuthURL)
