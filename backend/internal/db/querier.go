@@ -22,6 +22,7 @@ type Querier interface {
 	DeleteGoogleOAuthCredentials(ctx context.Context, userID pgtype.UUID) error
 	DeleteSession(ctx context.Context, id pgtype.UUID) error
 	DeleteWeightEntry(ctx context.Context, arg DeleteWeightEntryParams) (int64, error)
+	ExistsActiveEnergyForDate(ctx context.Context, arg ExistsActiveEnergyForDateParams) (bool, error)
 	ExistsHeightEntryForDate(ctx context.Context, arg ExistsHeightEntryForDateParams) (bool, error)
 	ExistsWeightEntryForDate(ctx context.Context, arg ExistsWeightEntryForDateParams) (bool, error)
 	GetGoogleOAuthCredentialsByUserID(ctx context.Context, userID pgtype.UUID) (GoogleOauthCredential, error)
@@ -42,6 +43,8 @@ type Querier interface {
 	ListWeightEntries(ctx context.Context, arg ListWeightEntriesParams) ([]WeightEntry, error)
 	MarkMagicLinkTokenUsed(ctx context.Context, id pgtype.UUID) error
 	RenameOverwhelmTag(ctx context.Context, arg RenameOverwhelmTagParams) (OverwhelmTag, error)
+	UpdateGoogleOAuthTokens(ctx context.Context, arg UpdateGoogleOAuthTokensParams) error
+	UpdateGoogleSyncEnabled(ctx context.Context, arg UpdateGoogleSyncEnabledParams) error
 	UpdateLastLoginAt(ctx context.Context, id pgtype.UUID) error
 	UpdateSyncWatermarks(ctx context.Context, arg UpdateSyncWatermarksParams) error
 	UpdateUserSettings(ctx context.Context, arg UpdateUserSettingsParams) (User, error)

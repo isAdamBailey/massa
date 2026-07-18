@@ -72,19 +72,36 @@ func (s *BackfillService) Run(ctx context.Context, userID uuid.UUID) error {
 	return err
 }
 
+// watermarkOverlap is subtracted from a stored watermark before building a
+// filter, so a sync that starts slightly late (or a data point that lands
+// with a delay on Google's side) is still covered. Harmless to overlap
+// further back since weight/height/active-energy syncing never overwrites a
+// day that's already stored (active energy's today/yesterday refresh is the
+// deliberate exception).
+const watermarkOverlap = 48 * time.Hour
+
 func (s *BackfillService) run(ctx context.Context, userID uuid.UUID) error {
 	client, persist, err := newAuthorizedClient(ctx, s.credentials, s.oauthConfig, userID, s.apiBaseURL)
 	if err != nil {
 		return err
 	}
 
-	if err := s.syncHeight(ctx, client, userID, "me"); err != nil {
+	meta, err := s.syncMeta.GetOrCreate(ctx, userID)
+	if err != nil {
+		return fmt.Errorf("load sync metadata: %w", err)
+	}
+	// A user with no watermarks yet has never completed a sync; run a full,
+	// unfiltered pull and record it as a full backfill. Otherwise, bound each
+	// data type's fetch to what's changed since it last synced.
+	isFullBackfill := meta.WeightSyncWatermark == nil && meta.HeightSyncWatermark == nil && meta.ActiveEnergySyncWatermark == nil
+
+	if err := s.syncHeight(ctx, client, userID, "me", meta.HeightSyncWatermark); err != nil {
 		return fmt.Errorf("sync height: %w", err)
 	}
-	if err := s.syncWeight(ctx, client, userID, "me"); err != nil {
+	if err := s.syncWeight(ctx, client, userID, "me", meta.WeightSyncWatermark); err != nil {
 		return fmt.Errorf("sync weight: %w", err)
 	}
-	if err := s.syncActiveEnergy(ctx, client, userID, "me"); err != nil {
+	if err := s.syncActiveEnergy(ctx, client, userID, "me", meta.ActiveEnergySyncWatermark); err != nil {
 		return fmt.Errorf("sync active energy: %w", err)
 	}
 
@@ -93,11 +110,9 @@ func (s *BackfillService) run(ctx context.Context, userID uuid.UUID) error {
 	}
 
 	now := time.Now().UTC()
-	meta, err := s.syncMeta.GetOrCreate(ctx, userID)
-	if err != nil {
-		return fmt.Errorf("load sync metadata: %w", err)
+	if isFullBackfill {
+		meta.LastFullBackfillAt = &now
 	}
-	meta.LastFullBackfillAt = &now
 	meta.LastIncrementalSyncAt = &now
 	meta.WeightSyncWatermark = &now
 	meta.HeightSyncWatermark = &now
@@ -109,7 +124,23 @@ func (s *BackfillService) run(ctx context.Context, userID uuid.UUID) error {
 	return nil
 }
 
-func (s *BackfillService) syncWeight(ctx context.Context, client *Client, userID uuid.UUID, healthUserID string) error {
+// sampleTimeFilter returns an AIP-160 filter bounding field to values at or
+// after watermark minus watermarkOverlap (and no later than floor, if given,
+// so callers can guarantee a minimum coverage window regardless of how
+// recent the watermark is), or "" (no filter, full history) if watermark is
+// nil.
+func sampleTimeFilter(field string, watermark *time.Time, floor *time.Time) string {
+	if watermark == nil {
+		return ""
+	}
+	since := watermark.Add(-watermarkOverlap)
+	if floor != nil && floor.Before(since) {
+		since = *floor
+	}
+	return fmt.Sprintf(`%s >= "%s"`, field, since.UTC().Format(time.RFC3339))
+}
+
+func (s *BackfillService) syncWeight(ctx context.Context, client *Client, userID uuid.UUID, healthUserID string, watermark *time.Time) error {
 	heightCm, err := s.heights.Resolve(ctx, userID)
 	if errors.Is(err, heights.ErrNoHeight) {
 		heightCm = 0
@@ -117,9 +148,11 @@ func (s *BackfillService) syncWeight(ctx context.Context, client *Client, userID
 		return fmt.Errorf("resolve height: %w", err)
 	}
 
+	filter := sampleTimeFilter("weight.sample_time.physical_time", watermark, nil)
+
 	pageToken := ""
 	for {
-		resp, err := client.ListWeightDataPoints(ctx, healthUserID, pageToken)
+		resp, err := client.ListWeightDataPoints(ctx, healthUserID, pageToken, filter)
 		if err != nil {
 			return err
 		}
@@ -193,10 +226,12 @@ func (s *BackfillService) syncWeight(ctx context.Context, client *Client, userID
 	}
 }
 
-func (s *BackfillService) syncHeight(ctx context.Context, client *Client, userID uuid.UUID, healthUserID string) error {
+func (s *BackfillService) syncHeight(ctx context.Context, client *Client, userID uuid.UUID, healthUserID string, watermark *time.Time) error {
+	filter := sampleTimeFilter("height.sample_time.physical_time", watermark, nil)
+
 	pageToken := ""
 	for {
-		resp, err := client.ListHeightDataPoints(ctx, healthUserID, pageToken)
+		resp, err := client.ListHeightDataPoints(ctx, healthUserID, pageToken, filter)
 		if err != nil {
 			return err
 		}
@@ -258,17 +293,29 @@ func (s *BackfillService) syncHeight(ctx context.Context, client *Client, userID
 	}
 }
 
-// syncActiveEnergy pulls the user's complete active energy burned history
-// from Google Health and upserts one row per calendar day, summing the
-// kcal of every interval data point observed that day (active energy is an
-// interval data type with many readings per day, unlike the single daily
-// weight/height reading).
-func (s *BackfillService) syncActiveEnergy(ctx context.Context, client *Client, userID uuid.UUID, healthUserID string) error {
+// syncActiveEnergy pulls the user's active energy burned history from
+// Google Health and upserts one row per calendar day, summing the kcal of
+// every interval data point observed that day (active energy is an interval
+// data type with many readings per day, unlike the single daily
+// weight/height reading). Unlike weight/height, active energy is
+// Google-only, so today and yesterday are always re-pulled and overwritten
+// to reflect their running/finalized totals; older days already stored are
+// left untouched.
+func (s *BackfillService) syncActiveEnergy(ctx context.Context, client *Client, userID uuid.UUID, healthUserID string, watermark *time.Time) error {
 	dailyKcal := make(map[string]float64)
+
+	// now is computed once and reused for both the fetch's lower bound and
+	// the today/yesterday freshness check below, so a sync that straddles a
+	// UTC midnight boundary can't classify a day differently between them.
+	now := time.Now().UTC()
+	startOfYesterday := now.AddDate(0, 0, -1).Truncate(24 * time.Hour)
+	// Always cover at least yesterday and today, regardless of the stored
+	// watermark, since those two days are refreshed on every sync.
+	filter := sampleTimeFilter("active_energy_burned.interval.start_time", watermark, &startOfYesterday)
 
 	pageToken := ""
 	for {
-		resp, err := client.ListActiveEnergyDataPoints(ctx, healthUserID, pageToken)
+		resp, err := client.ListActiveEnergyDataPoints(ctx, healthUserID, pageToken, filter)
 		if err != nil {
 			return err
 		}
@@ -293,10 +340,26 @@ func (s *BackfillService) syncActiveEnergy(ctx context.Context, client *Client, 
 		pageToken = resp.NextPageToken
 	}
 
+	today := now.Format("2006-01-02")
+	yesterday := startOfYesterday.Format("2006-01-02")
+
 	for day, kcal := range dailyKcal {
 		dayTime, err := time.Parse("2006-01-02", day)
 		if err != nil {
 			return fmt.Errorf("parse day %q: %w", day, err)
+		}
+
+		if day != today && day != yesterday {
+			exists, err := s.q.ExistsActiveEnergyForDate(ctx, db.ExistsActiveEnergyForDateParams{
+				UserID: db.ToUUID(userID),
+				Day:    db.ToDate(dayTime),
+			})
+			if err != nil {
+				return fmt.Errorf("check active energy entry for date: %w", err)
+			}
+			if exists {
+				continue
+			}
 		}
 
 		kcalNumeric, err := db.ToNumeric(kcal)

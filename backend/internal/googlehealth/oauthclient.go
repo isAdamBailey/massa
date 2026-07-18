@@ -77,5 +77,5 @@ func persistRefreshedToken(ctx context.Context, credentials CredentialsRepositor
 		creds.AccessTokenExpiresAt = &expiry
 	}
 
-	return credentials.Save(ctx, userID, creds)
+	return credentials.UpdateTokens(ctx, userID, creds)
 }

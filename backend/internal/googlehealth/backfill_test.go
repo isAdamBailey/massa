@@ -300,6 +300,147 @@ func TestBackfillService_RunReauthRequired(t *testing.T) {
 	require.ErrorIs(t, err, googlehealth.ErrReauthRequired)
 }
 
+func TestBackfillService_Run_SecondRunFiltersByWatermark(t *testing.T) {
+	empty := `{"dataPoints": []}`
+	var weightFilters, heightFilters, activeEnergyFilters []string
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		filter := r.URL.Query().Get("filter")
+		switch r.URL.Path {
+		case "/users/me/dataTypes/weight/dataPoints":
+			weightFilters = append(weightFilters, filter)
+		case "/users/me/dataTypes/height/dataPoints":
+			heightFilters = append(heightFilters, filter)
+		case "/users/me/dataTypes/active-energy-burned/dataPoints":
+			activeEnergyFilters = append(activeEnergyFilters, filter)
+		default:
+			t.Fatalf("unexpected request to %s", r.URL.Path)
+		}
+		_, _ = w.Write([]byte(empty))
+	}))
+	defer srv.Close()
+
+	q := newFakeQuerier()
+	credRepo := googlehealth.NewPostgresCredentialsRepository(q, testKey(t))
+	syncRepo := googlehealth.NewPostgresSyncMetadataRepository(q)
+	oauthConfig := &oauth2.Config{
+		ClientID:     "test-client",
+		ClientSecret: "test-secret",
+		Endpoint:     oauth2.Endpoint{TokenURL: "http://unused.invalid/token"},
+	}
+
+	userID := uuid.New()
+	expiry := time.Now().Add(time.Hour)
+	require.NoError(t, credRepo.Save(context.Background(), userID, googlehealth.Credentials{
+		HealthUserID:         "health-user-123",
+		RefreshToken:         "refresh-token",
+		AccessToken:          "access-token",
+		AccessTokenExpiresAt: &expiry,
+	}))
+
+	heightResolver := heights.NewResolver(q)
+	service := googlehealth.NewBackfillServiceForTest(q, credRepo, syncRepo, heightResolver, oauthConfig, srv.URL)
+
+	require.NoError(t, service.Run(context.Background(), userID))
+	require.Len(t, weightFilters, 1)
+	assert.Empty(t, weightFilters[0], "first run has no watermark yet, so it pulls full history")
+
+	metaAfterFirstRun, err := syncRepo.GetOrCreate(context.Background(), userID)
+	require.NoError(t, err)
+	require.NotNil(t, metaAfterFirstRun.LastFullBackfillAt)
+
+	require.NoError(t, service.Run(context.Background(), userID))
+	require.Len(t, weightFilters, 2)
+	require.Len(t, heightFilters, 2)
+	require.Len(t, activeEnergyFilters, 2)
+	assert.NotEmpty(t, weightFilters[1], "second run has a watermark, so it should bound the fetch")
+	assert.Contains(t, weightFilters[1], "weight.sample_time.physical_time >=")
+	assert.NotEmpty(t, heightFilters[1])
+	assert.Contains(t, heightFilters[1], "height.sample_time.physical_time >=")
+	assert.NotEmpty(t, activeEnergyFilters[1])
+	assert.Contains(t, activeEnergyFilters[1], "active_energy_burned.interval.start_time >=")
+
+	metaAfterSecondRun, err := syncRepo.GetOrCreate(context.Background(), userID)
+	require.NoError(t, err)
+	assert.Equal(t, metaAfterFirstRun.LastFullBackfillAt.Unix(), metaAfterSecondRun.LastFullBackfillAt.Unix(),
+		"only the first, unfiltered run counts as a full backfill")
+}
+
+func TestBackfillService_Run_ActiveEnergyRefreshesTodayAndYesterdayOnly(t *testing.T) {
+	now := time.Now().UTC()
+	today := now.Format("2006-01-02")
+	yesterday := now.AddDate(0, 0, -1).Format("2006-01-02")
+	older := now.AddDate(0, 0, -10).Format("2006-01-02")
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch r.URL.Path {
+		case "/users/me/dataTypes/weight/dataPoints", "/users/me/dataTypes/height/dataPoints":
+			_, _ = w.Write([]byte(`{"dataPoints": []}`))
+		case "/users/me/dataTypes/active-energy-burned/dataPoints":
+			_, _ = w.Write([]byte(`{
+				"dataPoints": [
+					{"activeEnergyBurned": {"kcal": 111, "interval": {"startTime": "` + today + `T08:00:00Z", "endTime": "` + today + `T09:00:00Z"}}},
+					{"activeEnergyBurned": {"kcal": 222, "interval": {"startTime": "` + yesterday + `T08:00:00Z", "endTime": "` + yesterday + `T09:00:00Z"}}},
+					{"activeEnergyBurned": {"kcal": 333, "interval": {"startTime": "` + older + `T08:00:00Z", "endTime": "` + older + `T09:00:00Z"}}}
+				]
+			}`))
+		default:
+			t.Fatalf("unexpected request to %s", r.URL.Path)
+		}
+	}))
+	defer srv.Close()
+
+	q := newFakeQuerier()
+	credRepo := googlehealth.NewPostgresCredentialsRepository(q, testKey(t))
+	syncRepo := googlehealth.NewPostgresSyncMetadataRepository(q)
+	oauthConfig := &oauth2.Config{
+		ClientID:     "test-client",
+		ClientSecret: "test-secret",
+		Endpoint:     oauth2.Endpoint{TokenURL: "http://unused.invalid/token"},
+	}
+
+	userID := uuid.New()
+	expiry := time.Now().Add(time.Hour)
+	require.NoError(t, credRepo.Save(context.Background(), userID, googlehealth.Credentials{
+		HealthUserID:         "health-user-123",
+		RefreshToken:         "refresh-token",
+		AccessToken:          "access-token",
+		AccessTokenExpiresAt: &expiry,
+	}))
+
+	// Pre-populate all three days as if a previous sync already stored them,
+	// with a stale kcal value that should only be overwritten for
+	// today/yesterday.
+	staleKcal, err := db.ToNumeric(1.0)
+	require.NoError(t, err)
+	q.activeEnergyEntries[userID] = map[string]db.ActiveEnergyEntry{
+		today:     {UserID: db.ToUUID(userID), Day: db.ToDate(now), ActiveEnergyKcal: staleKcal},
+		yesterday: {UserID: db.ToUUID(userID), Day: db.ToDate(now.AddDate(0, 0, -1)), ActiveEnergyKcal: staleKcal},
+		older:     {UserID: db.ToUUID(userID), Day: db.ToDate(now.AddDate(0, 0, -10)), ActiveEnergyKcal: staleKcal},
+	}
+
+	heightResolver := heights.NewResolver(q)
+	service := googlehealth.NewBackfillServiceForTest(q, credRepo, syncRepo, heightResolver, oauthConfig, srv.URL)
+
+	require.NoError(t, service.Run(context.Background(), userID))
+
+	entries := q.activeEnergyEntries[userID]
+
+	todayKcal, err := db.FromNumeric(entries[today].ActiveEnergyKcal)
+	require.NoError(t, err)
+	assert.InDelta(t, 111.0, todayKcal, 0.001, "today should always be refreshed")
+
+	yesterdayKcal, err := db.FromNumeric(entries[yesterday].ActiveEnergyKcal)
+	require.NoError(t, err)
+	assert.InDelta(t, 222.0, yesterdayKcal, 0.001, "yesterday should always be refreshed")
+
+	olderKcal, err := db.FromNumeric(entries[older].ActiveEnergyKcal)
+	require.NoError(t, err)
+	assert.InDelta(t, 1.0, olderKcal, 0.001, "an older day already stored should be left untouched")
+}
+
 func TestBackfillService_RunNotConnected(t *testing.T) {
 	q := newFakeQuerier()
 	credRepo := googlehealth.NewPostgresCredentialsRepository(q, testKey(t))

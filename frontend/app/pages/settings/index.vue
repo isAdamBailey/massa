@@ -14,6 +14,16 @@ const unitsPreference = ref<UnitsPreference>('metric')
 const saving = ref(false)
 const saveError = ref<string | null>(null)
 const saved = ref(false)
+const syncEnabledUpdating = ref(false)
+
+async function onToggleSyncEnabled() {
+  syncEnabledUpdating.value = true
+  try {
+    await google.setSyncEnabled(!google.status.syncEnabled)
+  } finally {
+    syncEnabledUpdating.value = false
+  }
+}
 
 onMounted(async () => {
   await Promise.all([google.fetchStatus(), settings.fetchSettings(), overwhelmTags.fetchTags()])
@@ -203,34 +213,49 @@ async function onArchiveTag(id: string) {
         </p>
 
         <template v-else>
-          <p
-            class="text-body"
-            :class="google.status.connected ? 'text-mist' : 'text-fog'"
-          >
-            {{ google.status.connected ? 'Connected' : 'Not connected' }}
-          </p>
+          <div class="flex items-center justify-between gap-3">
+            <div class="min-w-0">
+              <p
+                class="text-body"
+                :class="google.status.connected && google.status.syncEnabled ? 'text-mist' : 'text-fog'"
+              >
+                {{
+                  google.syncing
+                    ? 'Syncing…'
+                    : google.status.connected
+                      ? (google.status.syncEnabled ? 'Syncing with Google Health' : 'Paused')
+                      : 'Off'
+                }}
+              </p>
+              <p class="mt-0.5 text-label text-fog">
+                {{
+                  google.status.connected
+                    ? `Last sync ${formatDate(google.status.lastIncrementalSyncAt)}`
+                    : 'Turn on to connect and sync'
+                }}
+              </p>
+            </div>
 
-          <dl
-            v-if="google.status.connected"
-            class="space-y-1"
-          >
-            <div class="flex justify-between text-body">
-              <dt class="text-fog">
-                Last full backfill
-              </dt>
-              <dd class="text-mist">
-                {{ formatDate(google.status.lastFullBackfillAt) }}
-              </dd>
-            </div>
-            <div class="flex justify-between text-body">
-              <dt class="text-fog">
-                Last sync
-              </dt>
-              <dd class="text-mist">
-                {{ formatDate(google.status.lastIncrementalSyncAt) }}
-              </dd>
-            </div>
-          </dl>
+            <button
+              type="button"
+              role="switch"
+              :aria-checked="!!google.status.syncEnabled"
+              :disabled="syncEnabledUpdating || google.syncing"
+              aria-label="Sync with Google Health"
+              class="relative inline-flex h-7 w-12 shrink-0 items-center rounded-full transition-colors duration-150 disabled:opacity-50"
+              :class="google.status.syncEnabled
+                ? 'bg-verdigris'
+                : 'bg-graphite ring-1 ring-inset ring-hairline'"
+              @click="onToggleSyncEnabled"
+            >
+              <span
+                class="pointer-events-none block h-5 w-5 rounded-full transition-transform duration-150 ease-[cubic-bezier(0.16,1,0.3,1)]"
+                :class="google.status.syncEnabled
+                  ? 'translate-x-6.5 bg-carbon'
+                  : 'translate-x-1 bg-mist'"
+              />
+            </button>
+          </div>
 
           <p
             v-if="google.error"
@@ -238,34 +263,6 @@ async function onArchiveTag(id: string) {
           >
             {{ google.error }}
           </p>
-
-          <div class="flex gap-2 pt-2">
-            <button
-              v-if="!google.status.connected"
-              type="button"
-              class="rounded-sm bg-verdigris px-4 py-2 text-label text-carbon transition-colors duration-150 hover:bg-verdigris-hover"
-              @click="google.connect"
-            >
-              Connect Google Health
-            </button>
-            <template v-else>
-              <button
-                type="button"
-                :disabled="google.syncing"
-                class="rounded-sm bg-verdigris px-4 py-2 text-label text-carbon transition-colors duration-150 hover:bg-verdigris-hover disabled:opacity-50"
-                @click="google.sync"
-              >
-                {{ google.syncing ? 'Syncing…' : 'Sync now' }}
-              </button>
-              <button
-                type="button"
-                class="rounded-sm bg-graphite px-4 py-2 text-label text-mist transition-colors duration-150 hover:bg-graphite-hover"
-                @click="google.disconnect"
-              >
-                Disconnect
-              </button>
-            </template>
-          </div>
         </template>
       </section>
 

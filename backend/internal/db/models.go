@@ -35,6 +35,7 @@ type GoogleOauthCredential struct {
 	AccessTokenExpiresAt  pgtype.Timestamptz `json:"access_token_expires_at"`
 	ConnectedAt           pgtype.Timestamptz `json:"connected_at"`
 	UpdatedAt             pgtype.Timestamptz `json:"updated_at"`
+	SyncEnabled           bool               `json:"sync_enabled"`
 }
 
 type HeightEntry struct {

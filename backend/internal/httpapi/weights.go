@@ -223,8 +223,8 @@ func (h *Handler) deleteWeight(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if h.google != nil && h.google.Push != nil && entry.Source == "manual" && entry.GoogleDataPointID != nil &&
-		entry.GoogleSyncStatus != nil && *entry.GoogleSyncStatus == "synced" {
+	if entry.Source == "manual" && entry.GoogleDataPointID != nil && entry.GoogleSyncStatus != nil &&
+		*entry.GoogleSyncStatus == "synced" && h.googleSyncEnabled(r.Context(), user.ID) {
 		if pushErr := h.google.Push.DeleteWeight(r.Context(), user.ID, *entry.GoogleDataPointID); pushErr != nil && !errors.Is(pushErr, googlehealth.ErrNotConnected) {
 			log.Printf("httpapi: delete weight entry from google health: %v", pushErr)
 		}
@@ -279,13 +279,32 @@ func (h *Handler) bmiLatest(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// googleSyncEnabled reports whether the caller should push to, or delete
+// from, the given user's Google Health account: Google Health is configured,
+// the user has connected an account, and they haven't paused syncing.
+func (h *Handler) googleSyncEnabled(ctx context.Context, userID uuid.UUID) bool {
+	if h.google == nil || h.google.Push == nil {
+		return false
+	}
+
+	creds, err := h.google.Credentials.Get(ctx, userID)
+	if errors.Is(err, googlehealth.ErrNotConnected) {
+		return false
+	}
+	if err != nil {
+		log.Printf("httpapi: get google credentials: %v", err)
+		return false
+	}
+	return creds.SyncEnabled
+}
+
 // pushToGoogle pushes a manual weight entry to the caller's Google Health
 // account, best-effort: if Google Health is not configured, the entry isn't
-// a manual entry, or the user hasn't connected an account, entry is returned
-// unchanged. Otherwise the push result is recorded on the entry via
-// h.weights.UpdateGoogleSync.
+// a manual entry, or the user hasn't connected an account or has paused
+// syncing, entry is returned unchanged. Otherwise the push result is
+// recorded on the entry via h.weights.UpdateGoogleSync.
 func (h *Handler) pushToGoogle(ctx context.Context, userID uuid.UUID, entry weights.Entry) weights.Entry {
-	if h.google == nil || h.google.Push == nil || entry.Source != "manual" {
+	if entry.Source != "manual" || !h.googleSyncEnabled(ctx, userID) {
 		return entry
 	}
 

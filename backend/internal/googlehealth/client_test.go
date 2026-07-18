@@ -45,13 +45,27 @@ func TestClient_ListWeightDataPoints(t *testing.T) {
 
 	client := googlehealth.NewClientForTest(srv.Client(), srv.URL)
 
-	resp, err := client.ListWeightDataPoints(context.Background(), "abc123", "")
+	resp, err := client.ListWeightDataPoints(context.Background(), "abc123", "", "")
 	require.NoError(t, err)
 	require.Len(t, resp.DataPoints, 1)
 	require.NotNil(t, resp.DataPoints[0].Weight)
 	assert.InDelta(t, 70123.4, resp.DataPoints[0].Weight.WeightGrams, 0.001)
 	assert.Equal(t, "2024-01-01T08:00:00Z", resp.DataPoints[0].Weight.SampleTime.PhysicalTime)
 	assert.Equal(t, "next-page", resp.NextPageToken)
+}
+
+func TestClient_ListWeightDataPoints_SendsFilter(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, `weight.sample_time.physical_time >= "2024-01-01T00:00:00Z"`, r.URL.Query().Get("filter"))
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"dataPoints": []}`))
+	}))
+	defer srv.Close()
+
+	client := googlehealth.NewClientForTest(srv.Client(), srv.URL)
+
+	_, err := client.ListWeightDataPoints(context.Background(), "abc123", "", `weight.sample_time.physical_time >= "2024-01-01T00:00:00Z"`)
+	require.NoError(t, err)
 }
 
 func TestClient_ListHeightDataPoints(t *testing.T) {
@@ -68,7 +82,7 @@ func TestClient_ListHeightDataPoints(t *testing.T) {
 
 	client := googlehealth.NewClientForTest(srv.Client(), srv.URL)
 
-	resp, err := client.ListHeightDataPoints(context.Background(), "abc123", "")
+	resp, err := client.ListHeightDataPoints(context.Background(), "abc123", "", "")
 	require.NoError(t, err)
 	require.Len(t, resp.DataPoints, 1)
 	require.NotNil(t, resp.DataPoints[0].Height)

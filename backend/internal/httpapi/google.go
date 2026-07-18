@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/base64"
+	"encoding/json"
 	"errors"
 	"log"
 	"net/http"
@@ -126,6 +127,9 @@ func (h *Handler) googleCallback(w http.ResponseWriter, r *http.Request) {
 	if err := h.google.Backfill.Run(r.Context(), user.ID); err != nil {
 		log.Printf("httpapi: initial google health backfill: %v", err)
 	}
+	// A (re)connect may be finishing a weight save that couldn't push while
+	// disconnected; push anything still pending now that we're authorized.
+	h.pushUnsyncedToGoogle(r.Context(), user.ID)
 
 	http.Redirect(w, r, h.appBaseURL+"/settings?google=connected", http.StatusFound)
 }
@@ -134,6 +138,7 @@ func (h *Handler) googleCallback(w http.ResponseWriter, r *http.Request) {
 type googleStatusResponse struct {
 	Connected             bool       `json:"connected"`
 	HealthUserID          string     `json:"healthUserId,omitempty"`
+	SyncEnabled           bool       `json:"syncEnabled"`
 	LastFullBackfillAt    *time.Time `json:"lastFullBackfillAt,omitempty"`
 	LastIncrementalSyncAt *time.Time `json:"lastIncrementalSyncAt,omitempty"`
 }
@@ -168,6 +173,7 @@ func (h *Handler) googleStatus(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, googleStatusResponse{
 		Connected:             true,
 		HealthUserID:          creds.HealthUserID,
+		SyncEnabled:           creds.SyncEnabled,
 		LastFullBackfillAt:    meta.LastFullBackfillAt,
 		LastIncrementalSyncAt: meta.LastIncrementalSyncAt,
 	})
@@ -191,7 +197,8 @@ func (h *Handler) googleDisconnect(w http.ResponseWriter, r *http.Request) {
 }
 
 // googleSync re-runs the backfill for the current user, picking up any new
-// weight or height history from Google.
+// weight or height history from Google. It is a no-op if the user has paused
+// syncing.
 func (h *Handler) googleSync(w http.ResponseWriter, r *http.Request) {
 	user, ok := userFromContext(r.Context())
 	if !ok {
@@ -199,17 +206,33 @@ func (h *Handler) googleSync(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err := h.google.Backfill.Run(r.Context(), user.ID)
+	creds, err := h.google.Credentials.Get(r.Context(), user.ID)
 	if errors.Is(err, googlehealth.ErrNotConnected) {
 		writeError(w, http.StatusConflict, "google account not connected")
 		return
 	}
-	if errors.Is(err, googlehealth.ErrReauthRequired) {
-		log.Printf("httpapi: google health sync: reauthorization required: %v", err)
-		writeError(w, http.StatusConflict, "reconnect_required")
+	if err != nil {
+		log.Printf("httpapi: get google credentials: %v", err)
+		writeError(w, http.StatusInternalServerError, "internal error")
 		return
 	}
-	if err != nil {
+	if !creds.SyncEnabled {
+		w.WriteHeader(http.StatusOK)
+		return
+	}
+
+	if err := h.google.Backfill.Run(r.Context(), user.ID); err != nil {
+		if errors.Is(err, googlehealth.ErrReauthRequired) {
+			log.Printf("httpapi: google health sync: reauthorization required: %v", err)
+			writeError(w, http.StatusConflict, "reconnect_required")
+			return
+		}
+		if errors.Is(err, googlehealth.ErrNotConnected) {
+			// Narrow race: credentials were deleted between the Get above and
+			// Backfill.Run's own internal fetch.
+			writeError(w, http.StatusConflict, "google account not connected")
+			return
+		}
 		log.Printf("httpapi: google health sync: %v", err)
 		writeError(w, http.StatusBadGateway, "sync failed")
 		return
@@ -219,6 +242,43 @@ func (h *Handler) googleSync(w http.ResponseWriter, r *http.Request) {
 	// app. Now push the other direction: manual entries that exist here but
 	// have never been synced up to Google.
 	h.pushUnsyncedToGoogle(r.Context(), user.ID)
+
+	w.WriteHeader(http.StatusOK)
+}
+
+// googleSetSyncEnabledRequest is the JSON request body for
+// POST /api/google/sync-enabled.
+type googleSetSyncEnabledRequest struct {
+	Enabled bool `json:"enabled"`
+}
+
+// googleSetSyncEnabled pauses or resumes syncing for the current user
+// without discarding their stored Google credentials. Enabling with no
+// stored credentials returns 409 reconnect_required so the frontend can
+// start a fresh OAuth connect instead.
+func (h *Handler) googleSetSyncEnabled(w http.ResponseWriter, r *http.Request) {
+	user, ok := userFromContext(r.Context())
+	if !ok {
+		writeError(w, http.StatusUnauthorized, "not authenticated")
+		return
+	}
+
+	var req googleSetSyncEnabledRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+
+	err := h.google.Credentials.SetSyncEnabled(r.Context(), user.ID, req.Enabled)
+	if errors.Is(err, googlehealth.ErrNotConnected) {
+		writeError(w, http.StatusConflict, "reconnect_required")
+		return
+	}
+	if err != nil {
+		log.Printf("httpapi: set google sync enabled: %v", err)
+		writeError(w, http.StatusInternalServerError, "internal error")
+		return
+	}
 
 	w.WriteHeader(http.StatusOK)
 }

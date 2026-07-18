@@ -49,12 +49,34 @@ func (f *fakeCredentialsRepository) Get(_ context.Context, userID uuid.UUID) (go
 }
 
 func (f *fakeCredentialsRepository) Save(_ context.Context, userID uuid.UUID, creds googlehealth.Credentials) error {
+	// Mirror PostgresCredentialsRepository: connecting always (re)enables sync.
+	creds.SyncEnabled = true
+	f.creds[userID] = creds
+	return nil
+}
+
+func (f *fakeCredentialsRepository) UpdateTokens(_ context.Context, userID uuid.UUID, creds googlehealth.Credentials) error {
+	existing, ok := f.creds[userID]
+	if !ok {
+		return googlehealth.ErrNotConnected
+	}
+	creds.SyncEnabled = existing.SyncEnabled
 	f.creds[userID] = creds
 	return nil
 }
 
 func (f *fakeCredentialsRepository) Delete(_ context.Context, userID uuid.UUID) error {
 	delete(f.creds, userID)
+	return nil
+}
+
+func (f *fakeCredentialsRepository) SetSyncEnabled(_ context.Context, userID uuid.UUID, enabled bool) error {
+	c, ok := f.creds[userID]
+	if !ok {
+		return googlehealth.ErrNotConnected
+	}
+	c.SyncEnabled = enabled
+	f.creds[userID] = c
 	return nil
 }
 
@@ -95,6 +117,14 @@ func (fakeGoogleQuerier) DeleteGoogleOAuthCredentials(context.Context, pgtype.UU
 	return errNotImplemented
 }
 
+func (fakeGoogleQuerier) UpdateGoogleSyncEnabled(context.Context, db.UpdateGoogleSyncEnabledParams) error {
+	return errNotImplemented
+}
+
+func (fakeGoogleQuerier) UpdateGoogleOAuthTokens(context.Context, db.UpdateGoogleOAuthTokensParams) error {
+	return errNotImplemented
+}
+
 func (fakeGoogleQuerier) UpsertSyncMetadata(context.Context, pgtype.UUID) (db.SyncMetadatum, error) {
 	return db.SyncMetadatum{}, errNotImplemented
 }
@@ -125,6 +155,10 @@ func (fakeGoogleQuerier) UpsertHeightEntryByGoogleID(_ context.Context, arg db.U
 
 func (fakeGoogleQuerier) UpsertHeightEntryByRecordedAt(_ context.Context, arg db.UpsertHeightEntryByRecordedAtParams) (db.HeightEntry, error) {
 	return db.HeightEntry{UserID: arg.UserID, HeightCm: arg.HeightCm, RecordedAt: arg.RecordedAt}, nil
+}
+
+func (fakeGoogleQuerier) ExistsActiveEnergyForDate(context.Context, db.ExistsActiveEnergyForDateParams) (bool, error) {
+	return false, nil
 }
 
 func (fakeGoogleQuerier) UpsertActiveEnergyByDay(_ context.Context, arg db.UpsertActiveEnergyByDayParams) (db.ActiveEnergyEntry, error) {
@@ -427,7 +461,7 @@ func TestGoogleStatus_NotConnected(t *testing.T) {
 
 	rec := doRequest(t, env.router, http.MethodGet, "/api/google/status", "", []*http.Cookie{sessionCookie}, nil)
 	require.Equal(t, http.StatusOK, rec.Code)
-	assert.JSONEq(t, `{"connected":false}`, rec.Body.String())
+	assert.JSONEq(t, `{"connected":false,"syncEnabled":false}`, rec.Body.String())
 }
 
 func TestGoogleStatus_Connected(t *testing.T) {
@@ -566,6 +600,129 @@ func TestGoogleSync_PushesUnsyncedManualEntries(t *testing.T) {
 
 	// The pushed entry should now be recorded as synced.
 	assert.Equal(t, "synced", *env.weights.entries[unsynced].GoogleSyncStatus)
+}
+
+func TestGoogleSync_NoOpWhenPaused(t *testing.T) {
+	env := newGoogleTestEnv(t)
+	sessionCookie, csrfCookie := login(t, env.router, env.mailer, allowedEmail)
+
+	user, err := env.users.GetByEmail(t.Context(), allowedEmail)
+	require.NoError(t, err)
+	require.NoError(t, env.credentials.Save(t.Context(), user.ID, googlehealth.Credentials{
+		HealthUserID: testHealthUserID,
+		RefreshToken: "refresh-token",
+	}))
+	require.NoError(t, env.credentials.SetSyncEnabled(t.Context(), user.ID, false))
+
+	// A manual entry that would normally be pushed on sync.
+	unsynced := uuid.New()
+	env.weights.entries[unsynced] = weightEntryWithUser{
+		Entry: weights.Entry{
+			ID:         unsynced,
+			WeightKg:   72.5,
+			RecordedAt: time.Date(2024, 3, 1, 8, 0, 0, 0, time.UTC),
+			Source:     "manual",
+		},
+		userID: user.ID,
+	}
+
+	rec := doRequest(t, env.router, http.MethodPost, "/api/google/sync", "", []*http.Cookie{sessionCookie, csrfCookie}, map[string]string{
+		"X-CSRF-Token": csrfCookie.Value,
+	})
+	require.Equal(t, http.StatusOK, rec.Code)
+
+	meta, err := env.syncMeta.GetOrCreate(t.Context(), user.ID)
+	require.NoError(t, err)
+	assert.Nil(t, meta.LastFullBackfillAt, "a paused sync should not run the backfill")
+
+	upserts, _ := env.pushLog.snapshot()
+	assert.Empty(t, upserts, "a paused sync should not push unsynced entries")
+}
+
+func TestGoogleSetSyncEnabled_Pause(t *testing.T) {
+	env := newGoogleTestEnv(t)
+	sessionCookie, csrfCookie := login(t, env.router, env.mailer, allowedEmail)
+
+	user, err := env.users.GetByEmail(t.Context(), allowedEmail)
+	require.NoError(t, err)
+	require.NoError(t, env.credentials.Save(t.Context(), user.ID, googlehealth.Credentials{
+		HealthUserID: testHealthUserID,
+		RefreshToken: "refresh-token",
+	}))
+
+	rec := doRequest(t, env.router, http.MethodPost, "/api/google/sync-enabled", `{"enabled":false}`, []*http.Cookie{sessionCookie, csrfCookie}, map[string]string{
+		"X-CSRF-Token": csrfCookie.Value,
+	})
+	require.Equal(t, http.StatusOK, rec.Code)
+
+	creds, err := env.credentials.Get(t.Context(), user.ID)
+	require.NoError(t, err)
+	assert.False(t, creds.SyncEnabled)
+
+	statusRec := doRequest(t, env.router, http.MethodGet, "/api/google/status", "", []*http.Cookie{sessionCookie}, nil)
+	require.Equal(t, http.StatusOK, statusRec.Code)
+	var body struct {
+		Connected   bool `json:"connected"`
+		SyncEnabled bool `json:"syncEnabled"`
+	}
+	require.NoError(t, json.Unmarshal(statusRec.Body.Bytes(), &body))
+	assert.True(t, body.Connected, "pausing keeps the connection, unlike disconnect")
+	assert.False(t, body.SyncEnabled)
+}
+
+func TestGoogleSetSyncEnabled_ResumeWithoutReconnecting(t *testing.T) {
+	env := newGoogleTestEnv(t)
+	sessionCookie, csrfCookie := login(t, env.router, env.mailer, allowedEmail)
+
+	user, err := env.users.GetByEmail(t.Context(), allowedEmail)
+	require.NoError(t, err)
+	require.NoError(t, env.credentials.Save(t.Context(), user.ID, googlehealth.Credentials{
+		HealthUserID: testHealthUserID,
+		RefreshToken: "refresh-token",
+	}))
+	require.NoError(t, env.credentials.SetSyncEnabled(t.Context(), user.ID, false))
+
+	rec := doRequest(t, env.router, http.MethodPost, "/api/google/sync-enabled", `{"enabled":true}`, []*http.Cookie{sessionCookie, csrfCookie}, map[string]string{
+		"X-CSRF-Token": csrfCookie.Value,
+	})
+	require.Equal(t, http.StatusOK, rec.Code)
+
+	creds, err := env.credentials.Get(t.Context(), user.ID)
+	require.NoError(t, err)
+	assert.True(t, creds.SyncEnabled)
+	assert.Equal(t, "refresh-token", creds.RefreshToken, "resuming must not require a fresh OAuth exchange")
+}
+
+func TestGoogleSetSyncEnabled_NotConnected(t *testing.T) {
+	env := newGoogleTestEnv(t)
+	sessionCookie, csrfCookie := login(t, env.router, env.mailer, allowedEmail)
+
+	rec := doRequest(t, env.router, http.MethodPost, "/api/google/sync-enabled", `{"enabled":true}`, []*http.Cookie{sessionCookie, csrfCookie}, map[string]string{
+		"X-CSRF-Token": csrfCookie.Value,
+	})
+
+	assert.Equal(t, http.StatusConflict, rec.Code)
+}
+
+func TestGoogleCreateWeight_SkipsPushWhenPaused(t *testing.T) {
+	env := newGoogleTestEnv(t)
+	sessionCookie, csrfCookie := login(t, env.router, env.mailer, allowedEmail)
+
+	user, err := env.users.GetByEmail(t.Context(), allowedEmail)
+	require.NoError(t, err)
+	require.NoError(t, env.credentials.Save(t.Context(), user.ID, googlehealth.Credentials{
+		HealthUserID: testHealthUserID,
+		RefreshToken: "refresh-token",
+	}))
+	require.NoError(t, env.credentials.SetSyncEnabled(t.Context(), user.ID, false))
+
+	rec := doRequest(t, env.router, http.MethodPost, "/api/weights", `{"weightKg":72.5,"recordedAt":"2024-03-01T08:00:00Z"}`, []*http.Cookie{sessionCookie, csrfCookie}, map[string]string{
+		"X-CSRF-Token": csrfCookie.Value,
+	})
+	require.Equal(t, http.StatusCreated, rec.Code)
+
+	upserts, _ := env.pushLog.snapshot()
+	assert.Empty(t, upserts, "a paused connection should not push new weight entries to Google")
 }
 
 func TestGoogleRoutes_NotRegisteredWhenDisabled(t *testing.T) {
