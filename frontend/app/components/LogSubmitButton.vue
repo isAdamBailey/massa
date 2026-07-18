@@ -1,15 +1,22 @@
 <script setup lang="ts">
-defineProps<{
+import type { MetricAccent } from '~/composables/useMetricAccent'
+import { accentButtonClasses } from '~/composables/useMetricAccent'
+
+withDefaults(defineProps<{
   submitting: boolean
   justSaved: boolean
-}>()
+  accent?: MetricAccent
+}>(), {
+  accent: 'verdigris'
+})
 </script>
 
 <template>
   <button
     type="submit"
     :disabled="submitting"
-    class="flex flex-1 items-center justify-center gap-1.5 rounded-sm bg-verdigris px-5 text-sm font-medium text-carbon transition-colors duration-150 hover:bg-verdigris-hover disabled:cursor-not-allowed disabled:opacity-70"
+    class="flex flex-1 items-center justify-center gap-1.5 rounded-sm px-5 text-sm font-medium text-carbon transition-colors duration-150 disabled:cursor-not-allowed disabled:opacity-70"
+    :class="accentButtonClasses(accent)"
     style="min-width: 100px"
   >
     <Transition

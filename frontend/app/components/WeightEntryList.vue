@@ -97,7 +97,7 @@ async function onDelete(id: string) {
     </p>
     <ul
       v-else
-      class="divide-y divide-hairline"
+      class="max-h-[50vh] divide-y divide-hairline overflow-y-auto"
     >
       <li
         v-for="entry in sortedEntries"

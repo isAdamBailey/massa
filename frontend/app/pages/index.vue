@@ -208,24 +208,34 @@ function formatDate(value?: string) {
       </section>
 
       <section class="space-y-3 rounded-md bg-slate p-5">
-        <h2 class="text-title font-sans">
-          Log
-        </h2>
+        <div class="flex items-baseline justify-between gap-3">
+          <h2 class="text-title font-sans">
+            Log
+          </h2>
+          <p class="text-label text-fog">
+            Today
+          </p>
+        </div>
         <LogCard @saved="refreshAfterSave" />
       </section>
 
       <section class="space-y-4 rounded-md bg-slate p-5">
-        <div class="flex flex-wrap gap-2">
-          <button
-            v-for="preset in rangePresets"
-            :key="preset.value"
-            type="button"
-            class="rounded-sm px-3 py-1.5 text-label transition-colors duration-150"
-            :class="rangePreset === preset.value ? 'bg-verdigris text-carbon' : 'bg-graphite text-mist hover:bg-graphite-hover'"
-            @click="rangePreset = preset.value"
-          >
-            {{ preset.label }}
-          </button>
+        <div class="flex flex-wrap items-baseline justify-between gap-3">
+          <h2 class="text-title font-sans">
+            Trend
+          </h2>
+          <div class="flex flex-wrap gap-1.5">
+            <button
+              v-for="preset in rangePresets"
+              :key="preset.value"
+              type="button"
+              class="rounded-sm px-3 py-1.5 text-label transition-colors duration-150"
+              :class="rangePreset === preset.value ? 'bg-verdigris text-carbon' : 'bg-graphite text-mist hover:bg-graphite-hover'"
+              @click="rangePreset = preset.value"
+            >
+              {{ preset.label }}
+            </button>
+          </div>
         </div>
 
         <p
@@ -252,11 +262,8 @@ function formatDate(value?: string) {
         </p>
       </section>
 
-      <section class="space-y-3 rounded-md bg-slate p-5">
-        <h2 class="text-title font-sans">
-          Recent entries (last 7 days)
-        </h2>
-        <WeightEntryList />
+      <section class="rounded-md bg-slate p-5">
+        <RecentEntries />
       </section>
     </div>
   </div>

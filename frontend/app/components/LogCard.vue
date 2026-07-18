@@ -1,6 +1,12 @@
 <script setup lang="ts">
 import { OVERWHELM_BASELINE } from '~/composables/useOverwhelm'
 import { toDateLocalInput, toDateTimeLocalInput } from '~/composables/useLocalDateInput'
+import {
+  accentActiveClasses,
+  accentFocusClasses,
+  accentForLogTab,
+  METRIC_ACCENT_OKLCH
+} from '~/composables/useMetricAccent'
 import type { SegmentedOption } from '~/components/SegmentedControl.vue'
 
 const weights = useWeightsStore()
@@ -47,6 +53,9 @@ const defaultTab = logMetrics[0]!.id
 const activeTab = ref<LogTab>(defaultTab)
 const tabSeeded = ref(false)
 const fetchSeen = ref(false)
+
+const logAccent = computed(() => accentForLogTab(activeTab.value))
+const logWash = computed(() => METRIC_ACCENT_OKLCH[logAccent.value].wash)
 
 // The form mounts before the page's onMounted fetch resolves, so both stores
 // start empty. Wait until a fetch has started and finished before seeding —
@@ -196,181 +205,190 @@ onUnmounted(() => {
     <SegmentedControl
       v-model="activeTab"
       :options="tabOptions"
-      aria-label="Metric"
+      group-label="Metric"
+      :accent="logAccent"
       stretch
     />
 
-    <form
-      v-if="activeTab === 'weight'"
-      class="space-y-3"
-      @submit.prevent="onSubmit"
+    <div
+      class="rounded-sm p-3 transition-[background-color] duration-200"
+      :style="{ backgroundColor: logWash }"
     >
-      <div class="flex items-stretch gap-2">
-        <div class="relative min-w-0 flex-1">
-          <label
-            for="weight-input"
-            class="mb-1.5 block text-label text-fog"
-          >Weight ({{ unitLabel }})</label>
-          <div class="relative">
-            <input
-              id="weight-input"
-              v-model="weightInput"
-              type="number"
-              step="0.1"
-              min="0"
-              inputmode="decimal"
-              placeholder="0.0"
-              autocomplete="off"
-              class="w-full rounded-sm bg-graphite py-4 pl-4 pr-12 font-mono text-2xl tabular-nums text-mist placeholder:text-fog/30 focus:outline-2 focus:outline-verdigris focus:outline-offset-2"
-            >
+      <form
+        v-if="activeTab === 'weight'"
+        class="space-y-3"
+        @submit.prevent="onSubmit"
+      >
+        <div class="flex items-stretch gap-2">
+          <div class="relative min-w-0 flex-1">
+            <label
+              for="weight-input"
+              class="mb-1.5 block text-label text-fog"
+            >Weight ({{ unitLabel }})</label>
+            <div class="relative">
+              <input
+                id="weight-input"
+                v-model="weightInput"
+                type="number"
+                step="0.1"
+                min="0"
+                inputmode="decimal"
+                placeholder="0.0"
+                autocomplete="off"
+                class="w-full rounded-sm bg-graphite py-4 pl-4 pr-12 font-mono text-2xl tabular-nums text-mist placeholder:text-fog/30 focus:outline-2 focus:outline-offset-2"
+                :class="accentFocusClasses(logAccent)"
+              >
+              <span
+                class="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 font-sans text-label text-fog"
+                aria-hidden="true"
+              >{{ unitLabel }}</span>
+            </div>
+          </div>
+
+          <div class="flex shrink-0 flex-col">
             <span
-              class="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 font-sans text-label text-fog"
+              class="mb-1.5 block text-label opacity-0"
               aria-hidden="true"
-            >{{ unitLabel }}</span>
+            >Log</span>
+            <LogSubmitButton
+              :submitting="submitting"
+              :just-saved="justSaved"
+              :accent="logAccent"
+            />
           </div>
         </div>
 
-        <!-- Invisible label-height spacer keeps the button's own height equal
-             to the input's, since items-stretch matches column heights but
-             the button has no label pushing it down. -->
-        <div class="flex shrink-0 flex-col">
-          <span
-            class="mb-1.5 block text-label opacity-0"
-            aria-hidden="true"
-          >Log</span>
-          <LogSubmitButton
-            :submitting="submitting"
-            :just-saved="justSaved"
-          />
-        </div>
-      </div>
-
-      <div>
-        <label
-          for="date-input"
-          class="mb-1.5 block text-label text-fog"
-        >Date and time</label>
-        <input
-          id="date-input"
-          v-model="dateInput"
-          type="datetime-local"
-          class="w-full rounded-sm bg-graphite px-3 py-2 text-body text-mist"
-        >
-      </div>
-
-      <p
-        v-if="formError"
-        class="text-body text-ember"
-      >
-        {{ formError }}
-      </p>
-    </form>
-
-    <form
-      v-else-if="activeTab === 'overwhelm'"
-      class="space-y-3"
-      @submit.prevent="onSubmitOverwhelm"
-    >
-      <div>
-        <span
-          id="overwhelm-label"
-          class="mb-1.5 block text-label text-fog"
-        >How overwhelmed today?</span>
-        <div
-          role="radiogroup"
-          aria-labelledby="overwhelm-label"
-          class="flex gap-1"
-        >
-          <button
-            v-for="n in 10"
-            :key="n"
-            type="button"
-            role="radio"
-            :aria-checked="overwhelmLevel === n"
-            :aria-label="n === OVERWHELM_BASELINE ? `${n}, baseline` : String(n)"
-            class="relative min-w-0 flex-1 rounded-sm py-3 font-mono text-body tabular-nums transition-colors duration-150 focus:outline-2 focus:outline-verdigris focus:outline-offset-2"
-            :class="overwhelmLevel === n ? 'bg-verdigris text-carbon' : 'bg-graphite text-mist hover:bg-graphite-hover'"
-            @click="overwhelmLevel = n"
-          >
-            {{ n }}
-            <span
-              v-if="n === OVERWHELM_BASELINE"
-              class="absolute bottom-0.5 left-1/2 h-0.5 w-3 -translate-x-1/2 rounded-full"
-              :class="overwhelmLevel === n ? 'bg-carbon/60' : 'bg-fog'"
-              aria-hidden="true"
-            />
-          </button>
-        </div>
-        <p class="mt-1.5 text-label text-fog">
-          1 = calm · {{ OVERWHELM_BASELINE }} = your baseline · 10 = most overwhelmed
-        </p>
-      </div>
-
-      <div v-if="overwhelmTags.tags.length">
-        <span
-          id="overwhelm-tags-label"
-          class="mb-1.5 block text-label text-fog"
-        >Why? (optional)</span>
-        <div
-          role="group"
-          aria-labelledby="overwhelm-tags-label"
-          class="flex flex-wrap gap-1"
-        >
-          <button
-            v-for="tag in overwhelmTags.tags"
-            :key="tag.id"
-            type="button"
-            :aria-pressed="selectedTagIds.includes(tag.id)"
-            class="rounded-sm px-3 py-1.5 text-label transition-colors duration-150"
-            :class="selectedTagIds.includes(tag.id) ? 'bg-verdigris text-carbon' : 'bg-graphite text-mist hover:bg-graphite-hover'"
-            @click="toggleTag(tag.id)"
-          >
-            {{ tag.name }}
-          </button>
-        </div>
-      </div>
-      <p
-        v-else
-        class="text-label text-fog"
-      >
-        <NuxtLink
-          to="/settings"
-          class="underline hover:text-mist"
-        >Add tags in Settings</NuxtLink> to describe why, if you want to.
-      </p>
-
-      <div class="flex items-stretch gap-2">
-        <div class="min-w-0 flex-1">
+        <div>
           <label
-            for="overwhelm-date-input"
+            for="date-input"
             class="mb-1.5 block text-label text-fog"
-          >Date</label>
+          >Date and time</label>
           <input
-            id="overwhelm-date-input"
-            v-model="overwhelmDate"
-            type="date"
+            id="date-input"
+            v-model="dateInput"
+            type="datetime-local"
             class="w-full rounded-sm bg-graphite px-3 py-2 text-body text-mist"
           >
         </div>
 
-        <div class="flex shrink-0 flex-col">
-          <span
-            class="mb-1.5 block text-label opacity-0"
-            aria-hidden="true"
-          >Log</span>
-          <LogSubmitButton
-            :submitting="overwhelmSubmitting"
-            :just-saved="overwhelmJustSaved"
-          />
-        </div>
-      </div>
+        <p
+          v-if="formError"
+          class="text-body text-ember"
+        >
+          {{ formError }}
+        </p>
+      </form>
 
-      <p
-        v-if="overwhelmError"
-        class="text-body text-ember"
+      <form
+        v-else-if="activeTab === 'overwhelm'"
+        class="space-y-3"
+        @submit.prevent="onSubmitOverwhelm"
       >
-        {{ overwhelmError }}
-      </p>
-    </form>
+        <div>
+          <span
+            id="overwhelm-label"
+            class="mb-1.5 block text-label text-fog"
+          >How overwhelmed today?</span>
+          <div
+            role="radiogroup"
+            aria-labelledby="overwhelm-label"
+            class="flex gap-1"
+          >
+            <button
+              v-for="n in 10"
+              :key="n"
+              type="button"
+              role="radio"
+              :aria-checked="overwhelmLevel === n"
+              :aria-label="n === OVERWHELM_BASELINE ? `${n}, baseline` : String(n)"
+              class="relative min-w-0 flex-1 rounded-sm py-3 font-mono text-body tabular-nums transition-colors duration-150 focus:outline-2 focus:outline-offset-2"
+              :class="[
+                accentFocusClasses(logAccent),
+                overwhelmLevel === n ? accentActiveClasses(logAccent) : 'bg-graphite text-mist hover:bg-graphite-hover'
+              ]"
+              @click="overwhelmLevel = n"
+            >
+              {{ n }}
+              <span
+                v-if="n === OVERWHELM_BASELINE"
+                class="absolute bottom-0.5 left-1/2 h-0.5 w-3 -translate-x-1/2 rounded-full"
+                :class="overwhelmLevel === n ? 'bg-carbon/60' : 'bg-fog'"
+                aria-hidden="true"
+              />
+            </button>
+          </div>
+          <p class="mt-1.5 text-label text-fog">
+            1 = calm · {{ OVERWHELM_BASELINE }} = your baseline · 10 = most overwhelmed
+          </p>
+        </div>
+
+        <div v-if="overwhelmTags.tags.length">
+          <span
+            id="overwhelm-tags-label"
+            class="mb-1.5 block text-label text-fog"
+          >Why? (optional)</span>
+          <div
+            role="group"
+            aria-labelledby="overwhelm-tags-label"
+            class="flex flex-wrap gap-1"
+          >
+            <button
+              v-for="tag in overwhelmTags.tags"
+              :key="tag.id"
+              type="button"
+              :aria-pressed="selectedTagIds.includes(tag.id)"
+              class="rounded-sm px-3 py-1.5 text-label transition-colors duration-150"
+              :class="selectedTagIds.includes(tag.id) ? accentActiveClasses(logAccent) : 'bg-graphite text-mist hover:bg-graphite-hover'"
+              @click="toggleTag(tag.id)"
+            >
+              {{ tag.name }}
+            </button>
+          </div>
+        </div>
+        <p
+          v-else
+          class="text-label text-fog"
+        >
+          <NuxtLink
+            to="/settings"
+            class="underline hover:text-mist"
+          >Add tags in Settings</NuxtLink> to describe why, if you want to.
+        </p>
+
+        <div class="flex items-stretch gap-2">
+          <div class="min-w-0 flex-1">
+            <label
+              for="overwhelm-date-input"
+              class="mb-1.5 block text-label text-fog"
+            >Date</label>
+            <input
+              id="overwhelm-date-input"
+              v-model="overwhelmDate"
+              type="date"
+              class="w-full rounded-sm bg-graphite px-3 py-2 text-body text-mist"
+            >
+          </div>
+
+          <div class="flex shrink-0 flex-col">
+            <span
+              class="mb-1.5 block text-label opacity-0"
+              aria-hidden="true"
+            >Log</span>
+            <LogSubmitButton
+              :submitting="overwhelmSubmitting"
+              :just-saved="overwhelmJustSaved"
+              :accent="logAccent"
+            />
+          </div>
+        </div>
+
+        <p
+          v-if="overwhelmError"
+          class="text-body text-ember"
+        >
+          {{ overwhelmError }}
+        </p>
+      </form>
+    </div>
   </div>
 </template>

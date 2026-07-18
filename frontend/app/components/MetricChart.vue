@@ -5,6 +5,7 @@ import {
   BarController,
   BarElement,
   Chart as ChartJS,
+  Filler,
   LinearScale,
   LineController,
   LineElement,
@@ -15,6 +16,10 @@ import {
 import type { Plugin } from 'chart.js'
 import { Bar, Line } from 'vue-chartjs'
 import { BMI_BOUNDARIES } from '~/composables/useBmi'
+import {
+  accentForChartMetric,
+  METRIC_ACCENT_OKLCH
+} from '~/composables/useMetricAccent'
 import { OVERWHELM_BASELINE } from '~/composables/useOverwhelm'
 import type { SegmentedOption } from '~/components/SegmentedControl.vue'
 import type { ActiveEnergyEntry } from '~/stores/activeEnergy'
@@ -22,7 +27,7 @@ import type { OverwhelmEntry } from '~/stores/overwhelm'
 import type { UnitsPreference } from '~/stores/settings'
 import type { WeightEntry } from '~/stores/weights'
 
-ChartJS.register(LineController, LineElement, PointElement, BarController, BarElement, LinearScale, TimeScale, Tooltip)
+ChartJS.register(LineController, LineElement, PointElement, BarController, BarElement, LinearScale, TimeScale, Tooltip, Filler)
 
 const props = defineProps<{
   entries: WeightEntry[]
@@ -52,7 +57,6 @@ const viewOptions: SegmentedOption<ViewMode>[] = [
   { value: 'weekly', label: 'Weekly' }
 ]
 
-const VERDIGRIS = 'oklch(0.70 0.09 170)'
 const FOG = 'oklch(0.64 0.01 170)'
 const HAIRLINE = 'oklch(0.32 0.006 170)'
 const GRAPHITE = 'oklch(0.28 0.006 170)'
@@ -61,6 +65,47 @@ const AMBER = 'oklch(0.75 0.14 80)'
 const AMBER_WASH = 'oklch(0.75 0.14 80 / 0.10)'
 const EMBER = 'oklch(0.62 0.17 25)'
 const EMBER_WASH = 'oklch(0.62 0.17 25 / 0.12)'
+
+const chartAccent = computed(() => accentForChartMetric(metricMode.value))
+const chartPalette = computed(() => METRIC_ACCENT_OKLCH[chartAccent.value])
+
+function lineSeries(label: string, data: { x: number, y: number }[]) {
+  const { solid, fill } = chartPalette.value
+  return {
+    datasets: [
+      {
+        label,
+        data,
+        borderColor: solid,
+        backgroundColor: fill,
+        pointBackgroundColor: solid,
+        pointBorderColor: solid,
+        pointRadius: 3,
+        pointHoverRadius: 5,
+        borderWidth: 2,
+        tension: 0.2,
+        fill: 'start' as const
+      }
+    ]
+  }
+}
+
+function barSeries(label: string, data: { x: number, y: number }[]) {
+  const { solid, hover } = chartPalette.value
+  return {
+    datasets: [
+      {
+        label,
+        data,
+        borderColor: solid,
+        backgroundColor: solid,
+        hoverBackgroundColor: hover,
+        borderWidth: 0,
+        borderRadius: 3
+      }
+    ]
+  }
+}
 
 // BMI reference-range bands, drawn behind the line in BMI mode only.
 // Normal/underweight ranges stay untinted; only the elevated ranges get a wash.
@@ -242,18 +287,10 @@ const chartData = computed(() => {
       ? computeWeeklyAverageBy(props.overwhelmEntries, e => e.day, e => e.overwhelmLevel).map(w => ({ x: toLocalDate(w.weekStart).getTime(), y: w.average }))
       : props.overwhelmEntries.map(e => ({ x: toLocalDate(e.day).getTime(), y: e.overwhelmLevel }))
 
-    return {
-      datasets: [
-        {
-          label: viewMode.value === 'weekly' ? 'Weekly avg overwhelm' : 'Overwhelm',
-          data,
-          borderColor: VERDIGRIS,
-          backgroundColor: VERDIGRIS,
-          tension: 0.2,
-          pointRadius: 3
-        }
-      ]
-    }
+    return lineSeries(
+      viewMode.value === 'weekly' ? 'Weekly avg overwhelm' : 'Overwhelm',
+      data
+    )
   }
 
   if (metricMode.value === 'energy') {
@@ -261,16 +298,10 @@ const chartData = computed(() => {
       ? computeWeeklySumBy(props.activeEnergyEntries, e => e.day, e => e.activeEnergyKcal).map(w => ({ x: toLocalDate(w.weekStart).getTime(), y: w.total }))
       : props.activeEnergyEntries.map(e => ({ x: toLocalDate(e.day).getTime(), y: e.activeEnergyKcal }))
 
-    return {
-      datasets: [
-        {
-          label: viewMode.value === 'weekly' ? 'Weekly active energy (kcal)' : 'Active energy (kcal)',
-          data,
-          borderColor: VERDIGRIS,
-          backgroundColor: VERDIGRIS
-        }
-      ]
-    }
+    return barSeries(
+      viewMode.value === 'weekly' ? 'Weekly active energy (kcal)' : 'Active energy (kcal)',
+      data
+    )
   }
 
   if (metricMode.value === 'bmi') {
@@ -278,18 +309,10 @@ const chartData = computed(() => {
       ? computeWeeklyAverageBy(props.entries, e => e.recordedAt, e => e.bmi).map(w => ({ x: new Date(w.weekStart).getTime(), y: w.average }))
       : props.entries.filter(e => e.bmi != null).map(e => ({ x: new Date(e.recordedAt).getTime(), y: e.bmi as number }))
 
-    return {
-      datasets: [
-        {
-          label: viewMode.value === 'weekly' ? 'Weekly avg BMI' : 'BMI',
-          data,
-          borderColor: VERDIGRIS,
-          backgroundColor: VERDIGRIS,
-          tension: 0.2,
-          pointRadius: 3
-        }
-      ]
-    }
+    return lineSeries(
+      viewMode.value === 'weekly' ? 'Weekly avg BMI' : 'BMI',
+      data
+    )
   }
 
   const toDisplay = (kg: number) => props.unitsPreference === 'imperial' ? kgToLb(kg) : kg
@@ -299,18 +322,10 @@ const chartData = computed(() => {
     ? computeWeeklyAverages(props.entries).map(w => ({ x: new Date(w.weekStart).getTime(), y: toDisplay(w.average) }))
     : props.entries.map(e => ({ x: new Date(e.recordedAt).getTime(), y: toDisplay(e.weightKg) }))
 
-  return {
-    datasets: [
-      {
-        label: viewMode.value === 'weekly' ? `Weekly avg (${unitLabel})` : `Weight (${unitLabel})`,
-        data,
-        borderColor: VERDIGRIS,
-        backgroundColor: VERDIGRIS,
-        tension: 0.2,
-        pointRadius: 3
-      }
-    ]
-  }
+  return lineSeries(
+    viewMode.value === 'weekly' ? `Weekly avg (${unitLabel})` : `Weight (${unitLabel})`,
+    data
+  )
 })
 
 const hasData = computed(() => (chartData.value.datasets[0]?.data.length ?? 0) > 0)
@@ -373,43 +388,50 @@ const chartOptions = computed(() => ({
       <SegmentedControl
         v-model="metricMode"
         :options="metricOptions"
-        aria-label="Metric"
+        group-label="Metric"
+        :accent="chartAccent"
       />
       <SegmentedControl
         v-model="viewMode"
         :options="viewOptions"
-        aria-label="Range"
+        group-label="Range"
+        emphasis="quiet"
       />
     </div>
-    <div class="h-64">
-      <p
-        v-if="!hasData"
-        class="flex h-full items-center justify-center text-body text-fog"
-      >
-        <template v-if="metricMode === 'bmi'">
-          No BMI data available.
-        </template>
-        <template v-else-if="metricMode === 'energy'">
-          No active energy data yet. Connect Google Health to see it here.
-        </template>
-        <template v-else-if="metricMode === 'overwhelm'">
-          No overwhelm entries yet.
-        </template>
-        <template v-else>
-          No weight entries yet.
-        </template>
-      </p>
-      <Bar
-        v-else-if="metricMode === 'energy'"
-        :data="chartData"
-        :options="chartOptions"
-      />
-      <Line
-        v-else
-        :data="chartData"
-        :options="chartOptions"
-        :plugins="[bmiZonesPlugin, overwhelmBaselinePlugin]"
-      />
+    <div
+      class="h-64 rounded-sm p-3 transition-[background-color] duration-200"
+      :style="{ backgroundColor: chartPalette.wash }"
+    >
+      <div class="h-full rounded-sm bg-graphite/55 px-1 pt-2 pb-1">
+        <p
+          v-if="!hasData"
+          class="flex h-full items-center justify-center text-body text-fog"
+        >
+          <template v-if="metricMode === 'bmi'">
+            No BMI data available.
+          </template>
+          <template v-else-if="metricMode === 'energy'">
+            No active energy data yet. Connect Google Health to see it here.
+          </template>
+          <template v-else-if="metricMode === 'overwhelm'">
+            No overwhelm entries yet.
+          </template>
+          <template v-else>
+            No weight entries yet.
+          </template>
+        </p>
+        <Bar
+          v-else-if="metricMode === 'energy'"
+          :data="chartData"
+          :options="chartOptions"
+        />
+        <Line
+          v-else
+          :data="chartData"
+          :options="chartOptions"
+          :plugins="[bmiZonesPlugin, overwhelmBaselinePlugin]"
+        />
+      </div>
     </div>
     <p
       v-if="hasData && metricMode === 'bmi'"
