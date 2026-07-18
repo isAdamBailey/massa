@@ -99,6 +99,20 @@ func (f *fakeQuerier) UpdateGoogleSyncEnabled(_ context.Context, arg db.UpdateGo
 	return nil
 }
 
+func (f *fakeQuerier) UpdateGoogleOAuthTokens(_ context.Context, arg db.UpdateGoogleOAuthTokensParams) error {
+	row, ok := f.credentials[db.FromUUID(arg.UserID)]
+	if !ok {
+		return pgx.ErrNoRows
+	}
+	row.RefreshTokenEncrypted = arg.RefreshTokenEncrypted
+	row.RefreshTokenNonce = arg.RefreshTokenNonce
+	row.AccessTokenEncrypted = arg.AccessTokenEncrypted
+	row.AccessTokenNonce = arg.AccessTokenNonce
+	row.AccessTokenExpiresAt = arg.AccessTokenExpiresAt
+	f.credentials[db.FromUUID(arg.UserID)] = row
+	return nil
+}
+
 func (f *fakeQuerier) UpsertSyncMetadata(_ context.Context, userID pgtype.UUID) (db.SyncMetadatum, error) {
 	row, ok := f.syncMeta[db.FromUUID(userID)]
 	if !ok {

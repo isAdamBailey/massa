@@ -43,6 +43,39 @@ func (q *Queries) GetGoogleOAuthCredentialsByUserID(ctx context.Context, userID 
 	return i, err
 }
 
+const updateGoogleOAuthTokens = `-- name: UpdateGoogleOAuthTokens :exec
+UPDATE google_oauth_credentials
+SET
+    refresh_token_encrypted = $2,
+    refresh_token_nonce = $3,
+    access_token_encrypted = $4,
+    access_token_nonce = $5,
+    access_token_expires_at = $6,
+    updated_at = now()
+WHERE user_id = $1
+`
+
+type UpdateGoogleOAuthTokensParams struct {
+	UserID                pgtype.UUID        `json:"user_id"`
+	RefreshTokenEncrypted []byte             `json:"refresh_token_encrypted"`
+	RefreshTokenNonce     []byte             `json:"refresh_token_nonce"`
+	AccessTokenEncrypted  []byte             `json:"access_token_encrypted"`
+	AccessTokenNonce      []byte             `json:"access_token_nonce"`
+	AccessTokenExpiresAt  pgtype.Timestamptz `json:"access_token_expires_at"`
+}
+
+func (q *Queries) UpdateGoogleOAuthTokens(ctx context.Context, arg UpdateGoogleOAuthTokensParams) error {
+	_, err := q.db.Exec(ctx, updateGoogleOAuthTokens,
+		arg.UserID,
+		arg.RefreshTokenEncrypted,
+		arg.RefreshTokenNonce,
+		arg.AccessTokenEncrypted,
+		arg.AccessTokenNonce,
+		arg.AccessTokenExpiresAt,
+	)
+	return err
+}
+
 const updateGoogleSyncEnabled = `-- name: UpdateGoogleSyncEnabled :exec
 UPDATE google_oauth_credentials
 SET sync_enabled = $2, updated_at = now()

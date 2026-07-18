@@ -27,3 +27,14 @@ DELETE FROM google_oauth_credentials WHERE user_id = $1;
 UPDATE google_oauth_credentials
 SET sync_enabled = $2, updated_at = now()
 WHERE user_id = $1;
+
+-- name: UpdateGoogleOAuthTokens :exec
+UPDATE google_oauth_credentials
+SET
+    refresh_token_encrypted = $2,
+    refresh_token_nonce = $3,
+    access_token_encrypted = $4,
+    access_token_nonce = $5,
+    access_token_expires_at = $6,
+    updated_at = now()
+WHERE user_id = $1;

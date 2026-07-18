@@ -55,6 +55,16 @@ func (f *fakeCredentialsRepository) Save(_ context.Context, userID uuid.UUID, cr
 	return nil
 }
 
+func (f *fakeCredentialsRepository) UpdateTokens(_ context.Context, userID uuid.UUID, creds googlehealth.Credentials) error {
+	existing, ok := f.creds[userID]
+	if !ok {
+		return googlehealth.ErrNotConnected
+	}
+	creds.SyncEnabled = existing.SyncEnabled
+	f.creds[userID] = creds
+	return nil
+}
+
 func (f *fakeCredentialsRepository) Delete(_ context.Context, userID uuid.UUID) error {
 	delete(f.creds, userID)
 	return nil
@@ -108,6 +118,10 @@ func (fakeGoogleQuerier) DeleteGoogleOAuthCredentials(context.Context, pgtype.UU
 }
 
 func (fakeGoogleQuerier) UpdateGoogleSyncEnabled(context.Context, db.UpdateGoogleSyncEnabledParams) error {
+	return errNotImplemented
+}
+
+func (fakeGoogleQuerier) UpdateGoogleOAuthTokens(context.Context, db.UpdateGoogleOAuthTokensParams) error {
 	return errNotImplemented
 }
 

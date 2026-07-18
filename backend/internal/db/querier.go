@@ -43,6 +43,7 @@ type Querier interface {
 	ListWeightEntries(ctx context.Context, arg ListWeightEntriesParams) ([]WeightEntry, error)
 	MarkMagicLinkTokenUsed(ctx context.Context, id pgtype.UUID) error
 	RenameOverwhelmTag(ctx context.Context, arg RenameOverwhelmTagParams) (OverwhelmTag, error)
+	UpdateGoogleOAuthTokens(ctx context.Context, arg UpdateGoogleOAuthTokensParams) error
 	UpdateGoogleSyncEnabled(ctx context.Context, arg UpdateGoogleSyncEnabledParams) error
 	UpdateLastLoginAt(ctx context.Context, id pgtype.UUID) error
 	UpdateSyncWatermarks(ctx context.Context, arg UpdateSyncWatermarksParams) error
