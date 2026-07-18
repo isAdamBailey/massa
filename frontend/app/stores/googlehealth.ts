@@ -50,18 +50,6 @@ export const useGoogleHealthStore = defineStore('googlehealth', () => {
     }
   }
 
-  /** disconnect removes the stored Google Health credentials. */
-  async function disconnect() {
-    error.value = null
-    try {
-      await apiFetch('/api/google/disconnect', { method: 'POST' })
-      status.value = { connected: false }
-      reconnectRequired.value = false
-    } catch {
-      error.value = 'Failed to disconnect Google Health. Please try again.'
-    }
-  }
-
   /**
    * sync re-runs the Google Health backfill for the current user. Failures
    * are swallowed into `error`/`reconnectRequired` rather than thrown, since
@@ -76,8 +64,8 @@ export const useGoogleHealthStore = defineStore('googlehealth', () => {
       await fetchStatus()
     } catch (err) {
       // A 409 with "reconnect_required" means the stored Google credentials
-      // have expired or been revoked. Flip to disconnected so the UI offers a
-      // reconnect button instead of a dead "Sync now".
+      // have expired or been revoked. Flip to disconnected so the UI can
+      // prompt a reconnect instead of leaving a dead connection.
       if (apiErrorCode(err) === 'reconnect_required') {
         status.value = { connected: false }
         reconnectRequired.value = true
@@ -92,14 +80,20 @@ export const useGoogleHealthStore = defineStore('googlehealth', () => {
 
   /**
    * setSyncEnabled pauses or resumes syncing without discarding the stored
-   * Google connection. If there is no connection to pause/resume (e.g. it
-   * was never made, or expired), falls back to starting a fresh connect.
+   * Google connection. Enabling with no (or expired) credentials starts a
+   * fresh OAuth connect; enabling with a live connection runs a sync.
    */
   async function setSyncEnabled(enabled: boolean) {
     error.value = null
     try {
       await apiFetch('/api/google/sync-enabled', { method: 'POST', body: { enabled } })
       await fetchStatus()
+      if (enabled) {
+        await sync()
+        if (reconnectRequired.value) {
+          await connect()
+        }
+      }
     } catch (err) {
       if (enabled && apiErrorCode(err) === 'reconnect_required') {
         await connect()
@@ -109,5 +103,5 @@ export const useGoogleHealthStore = defineStore('googlehealth', () => {
     }
   }
 
-  return { status, loading, syncing, error, reconnectRequired, fetchStatus, connect, disconnect, sync, setSyncEnabled }
+  return { status, loading, syncing, error, reconnectRequired, fetchStatus, connect, sync, setSyncEnabled }
 })

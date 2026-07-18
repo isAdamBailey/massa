@@ -359,7 +359,7 @@ func TestBackfillService_Run_SecondRunFiltersByWatermark(t *testing.T) {
 	assert.NotEmpty(t, heightFilters[1])
 	assert.Contains(t, heightFilters[1], "height.sample_time.physical_time >=")
 	assert.NotEmpty(t, activeEnergyFilters[1])
-	assert.Contains(t, activeEnergyFilters[1], "activeEnergyBurned.interval.start_time >=")
+	assert.Contains(t, activeEnergyFilters[1], "active_energy_burned.interval.start_time >=")
 
 	metaAfterSecondRun, err := syncRepo.GetOrCreate(context.Background(), userID)
 	require.NoError(t, err)

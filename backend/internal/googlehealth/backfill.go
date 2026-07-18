@@ -311,7 +311,7 @@ func (s *BackfillService) syncActiveEnergy(ctx context.Context, client *Client, 
 	startOfYesterday := now.AddDate(0, 0, -1).Truncate(24 * time.Hour)
 	// Always cover at least yesterday and today, regardless of the stored
 	// watermark, since those two days are refreshed on every sync.
-	filter := sampleTimeFilter("activeEnergyBurned.interval.start_time", watermark, &startOfYesterday)
+	filter := sampleTimeFilter("active_energy_burned.interval.start_time", watermark, &startOfYesterday)
 
 	pageToken := ""
 	for {
