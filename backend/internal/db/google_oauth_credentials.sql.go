@@ -21,7 +21,7 @@ func (q *Queries) DeleteGoogleOAuthCredentials(ctx context.Context, userID pgtyp
 }
 
 const getGoogleOAuthCredentialsByUserID = `-- name: GetGoogleOAuthCredentialsByUserID :one
-SELECT id, user_id, google_health_user_id, refresh_token_encrypted, refresh_token_nonce, access_token_encrypted, access_token_nonce, access_token_expires_at, connected_at, updated_at FROM google_oauth_credentials WHERE user_id = $1
+SELECT id, user_id, google_health_user_id, refresh_token_encrypted, refresh_token_nonce, access_token_encrypted, access_token_nonce, access_token_expires_at, connected_at, updated_at, sync_enabled FROM google_oauth_credentials WHERE user_id = $1
 `
 
 func (q *Queries) GetGoogleOAuthCredentialsByUserID(ctx context.Context, userID pgtype.UUID) (GoogleOauthCredential, error) {
@@ -38,17 +38,35 @@ func (q *Queries) GetGoogleOAuthCredentialsByUserID(ctx context.Context, userID 
 		&i.AccessTokenExpiresAt,
 		&i.ConnectedAt,
 		&i.UpdatedAt,
+		&i.SyncEnabled,
 	)
 	return i, err
+}
+
+const updateGoogleSyncEnabled = `-- name: UpdateGoogleSyncEnabled :exec
+UPDATE google_oauth_credentials
+SET sync_enabled = $2, updated_at = now()
+WHERE user_id = $1
+`
+
+type UpdateGoogleSyncEnabledParams struct {
+	UserID      pgtype.UUID `json:"user_id"`
+	SyncEnabled bool        `json:"sync_enabled"`
+}
+
+func (q *Queries) UpdateGoogleSyncEnabled(ctx context.Context, arg UpdateGoogleSyncEnabledParams) error {
+	_, err := q.db.Exec(ctx, updateGoogleSyncEnabled, arg.UserID, arg.SyncEnabled)
+	return err
 }
 
 const upsertGoogleOAuthCredentials = `-- name: UpsertGoogleOAuthCredentials :one
 INSERT INTO google_oauth_credentials (
     user_id, google_health_user_id,
     refresh_token_encrypted, refresh_token_nonce,
-    access_token_encrypted, access_token_nonce, access_token_expires_at
+    access_token_encrypted, access_token_nonce, access_token_expires_at,
+    sync_enabled
 )
-VALUES ($1, $2, $3, $4, $5, $6, $7)
+VALUES ($1, $2, $3, $4, $5, $6, $7, true)
 ON CONFLICT (user_id) DO UPDATE SET
     google_health_user_id = excluded.google_health_user_id,
     refresh_token_encrypted = excluded.refresh_token_encrypted,
@@ -56,8 +74,9 @@ ON CONFLICT (user_id) DO UPDATE SET
     access_token_encrypted = excluded.access_token_encrypted,
     access_token_nonce = excluded.access_token_nonce,
     access_token_expires_at = excluded.access_token_expires_at,
+    sync_enabled = true,
     updated_at = now()
-RETURNING id, user_id, google_health_user_id, refresh_token_encrypted, refresh_token_nonce, access_token_encrypted, access_token_nonce, access_token_expires_at, connected_at, updated_at
+RETURNING id, user_id, google_health_user_id, refresh_token_encrypted, refresh_token_nonce, access_token_encrypted, access_token_nonce, access_token_expires_at, connected_at, updated_at, sync_enabled
 `
 
 type UpsertGoogleOAuthCredentialsParams struct {
@@ -92,6 +111,7 @@ func (q *Queries) UpsertGoogleOAuthCredentials(ctx context.Context, arg UpsertGo
 		&i.AccessTokenExpiresAt,
 		&i.ConnectedAt,
 		&i.UpdatedAt,
+		&i.SyncEnabled,
 	)
 	return i, err
 }

@@ -78,6 +78,7 @@ func (f *fakeQuerier) UpsertGoogleOAuthCredentials(_ context.Context, arg db.Ups
 		AccessTokenEncrypted:  arg.AccessTokenEncrypted,
 		AccessTokenNonce:      arg.AccessTokenNonce,
 		AccessTokenExpiresAt:  arg.AccessTokenExpiresAt,
+		SyncEnabled:           true,
 	}
 	f.credentials[db.FromUUID(arg.UserID)] = row
 	return row, nil
@@ -85,6 +86,16 @@ func (f *fakeQuerier) UpsertGoogleOAuthCredentials(_ context.Context, arg db.Ups
 
 func (f *fakeQuerier) DeleteGoogleOAuthCredentials(_ context.Context, userID pgtype.UUID) error {
 	delete(f.credentials, db.FromUUID(userID))
+	return nil
+}
+
+func (f *fakeQuerier) UpdateGoogleSyncEnabled(_ context.Context, arg db.UpdateGoogleSyncEnabledParams) error {
+	row, ok := f.credentials[db.FromUUID(arg.UserID)]
+	if !ok {
+		return pgx.ErrNoRows
+	}
+	row.SyncEnabled = arg.SyncEnabled
+	f.credentials[db.FromUUID(arg.UserID)] = row
 	return nil
 }
 
@@ -164,6 +175,11 @@ func (f *fakeQuerier) UpsertActiveEnergyByDay(_ context.Context, arg db.UpsertAc
 	}
 	entries[key] = row
 	return row, nil
+}
+
+func (f *fakeQuerier) ExistsActiveEnergyForDate(_ context.Context, arg db.ExistsActiveEnergyForDateParams) (bool, error) {
+	_, ok := f.activeEnergyEntries[db.FromUUID(arg.UserID)][arg.Day.Time.Format("2006-01-02")]
+	return ok, nil
 }
 
 func (f *fakeQuerier) ExistsHeightEntryForDate(_ context.Context, arg db.ExistsHeightEntryForDateParams) (bool, error) {

@@ -14,6 +14,16 @@ const unitsPreference = ref<UnitsPreference>('metric')
 const saving = ref(false)
 const saveError = ref<string | null>(null)
 const saved = ref(false)
+const syncEnabledUpdating = ref(false)
+
+async function onToggleSyncEnabled() {
+  syncEnabledUpdating.value = true
+  try {
+    await google.setSyncEnabled(!google.status.syncEnabled)
+  } finally {
+    syncEnabledUpdating.value = false
+  }
+}
 
 onMounted(async () => {
   await Promise.all([google.fetchStatus(), settings.fetchSettings(), overwhelmTags.fetchTags()])
@@ -203,12 +213,31 @@ async function onArchiveTag(id: string) {
         </p>
 
         <template v-else>
-          <p
-            class="text-body"
-            :class="google.status.connected ? 'text-mist' : 'text-fog'"
-          >
-            {{ google.status.connected ? 'Connected' : 'Not connected' }}
-          </p>
+          <div class="flex items-center justify-between">
+            <p
+              class="text-body"
+              :class="google.status.connected ? 'text-mist' : 'text-fog'"
+            >
+              {{ google.status.connected ? (google.status.syncEnabled ? 'Connected' : 'Connected (paused)') : 'Not connected' }}
+            </p>
+
+            <button
+              v-if="google.status.connected"
+              type="button"
+              role="switch"
+              :aria-checked="google.status.syncEnabled"
+              :disabled="syncEnabledUpdating"
+              aria-label="Sync with Google Health"
+              class="relative h-6 w-11 shrink-0 rounded-full transition-colors duration-150 disabled:opacity-50"
+              :class="google.status.syncEnabled ? 'bg-verdigris' : 'bg-graphite'"
+              @click="onToggleSyncEnabled"
+            >
+              <span
+                class="absolute top-0.5 h-5 w-5 rounded-full bg-carbon transition-transform duration-150"
+                :class="google.status.syncEnabled ? 'translate-x-[1.375rem]' : 'translate-x-0.5'"
+              />
+            </button>
+          </div>
 
           <dl
             v-if="google.status.connected"
@@ -251,7 +280,7 @@ async function onArchiveTag(id: string) {
             <template v-else>
               <button
                 type="button"
-                :disabled="google.syncing"
+                :disabled="google.syncing || !google.status.syncEnabled"
                 class="rounded-sm bg-verdigris px-4 py-2 text-label text-carbon transition-colors duration-150 hover:bg-verdigris-hover disabled:opacity-50"
                 @click="google.sync"
               >

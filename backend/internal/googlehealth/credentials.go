@@ -28,6 +28,7 @@ type Credentials struct {
 	RefreshToken         string
 	AccessToken          string
 	AccessTokenExpiresAt *time.Time
+	SyncEnabled          bool
 }
 
 // CredentialsRepository stores and retrieves a user's Google OAuth
@@ -40,6 +41,9 @@ type CredentialsRepository interface {
 	Save(ctx context.Context, userID uuid.UUID, creds Credentials) error
 	// Delete removes any stored credentials for userID.
 	Delete(ctx context.Context, userID uuid.UUID) error
+	// SetSyncEnabled pauses or resumes syncing for userID without discarding
+	// the stored credentials. Returns ErrNotConnected if none exist.
+	SetSyncEnabled(ctx context.Context, userID uuid.UUID, enabled bool) error
 }
 
 // PostgresCredentialsRepository implements CredentialsRepository using
@@ -84,6 +88,7 @@ func (r *PostgresCredentialsRepository) Get(ctx context.Context, userID uuid.UUI
 		RefreshToken:         string(refreshToken),
 		AccessToken:          accessToken,
 		AccessTokenExpiresAt: db.FromTimestamptz(row.AccessTokenExpiresAt),
+		SyncEnabled:          row.SyncEnabled,
 	}, nil
 }
 
@@ -117,4 +122,18 @@ func (r *PostgresCredentialsRepository) Save(ctx context.Context, userID uuid.UU
 // Delete implements CredentialsRepository.
 func (r *PostgresCredentialsRepository) Delete(ctx context.Context, userID uuid.UUID) error {
 	return r.q.DeleteGoogleOAuthCredentials(ctx, db.ToUUID(userID))
+}
+
+// SetSyncEnabled implements CredentialsRepository.
+func (r *PostgresCredentialsRepository) SetSyncEnabled(ctx context.Context, userID uuid.UUID, enabled bool) error {
+	// Confirm the row exists first so we can return the same ErrNotConnected
+	// sentinel Get uses, rather than silently no-op'ing an UPDATE that
+	// matched zero rows.
+	if _, err := r.Get(ctx, userID); err != nil {
+		return err
+	}
+	return r.q.UpdateGoogleSyncEnabled(ctx, db.UpdateGoogleSyncEnabledParams{
+		UserID:      db.ToUUID(userID),
+		SyncEnabled: enabled,
+	})
 }

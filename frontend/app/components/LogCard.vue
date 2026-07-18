@@ -8,6 +8,7 @@ const overwhelm = useOverwhelmStore()
 const overwhelmTags = useOverwhelmTagsStore()
 const settings = useSettingsStore()
 const google = useGoogleHealthStore()
+const pendingWeight = useGooglePendingWeight()
 const { lbToKg } = useBmi()
 const { toLocalDate } = useWeeklyAverages()
 
@@ -99,11 +100,19 @@ async function onSubmit() {
     // Sync with Google Health before logging the weight, not after: this is
     // where a stale/revoked Google connection surfaces (reconnect_required).
     // Catching it here means we never save a weight entry we can't also
-    // account for in that day's synced energy data.
-    if (google.status.connected && !google.syncing) {
+    // account for in that day's synced energy data. Skipped entirely while
+    // syncing is paused.
+    if (google.status.connected && google.status.syncEnabled && !google.syncing) {
       await google.sync()
       if (google.reconnectRequired) {
-        formError.value = google.error ?? 'Google Health needs to reconnect. Please reconnect before logging a new weight.'
+        // Stash the entry and hand off to Google's consent screen instead of
+        // blocking the save: app/plugins/google-resume.client.ts picks it
+        // back up once the app reloads with a restored connection.
+        pendingWeight.set({ weightKg, recordedAt })
+        if (!(await google.connect())) {
+          pendingWeight.clear()
+          formError.value = google.error ?? 'Failed to reconnect Google Health. Please try again.'
+        }
         return
       }
     }

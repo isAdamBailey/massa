@@ -84,6 +84,7 @@ func (h *Handler) Register(r chi.Router) {
 				r.Get("/google/status", h.googleStatus)
 				r.With(h.requireCSRF).Post("/google/disconnect", h.googleDisconnect)
 				r.With(h.requireCSRF).Post("/google/sync", h.googleSync)
+				r.With(h.requireCSRF).Post("/google/sync-enabled", h.googleSetSyncEnabled)
 			}
 		})
 	})

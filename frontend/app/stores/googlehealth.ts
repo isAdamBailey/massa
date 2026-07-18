@@ -1,6 +1,12 @@
+/** apiErrorCode extracts the backend's `{"error": "..."}` code from an apiFetch rejection, if present. */
+function apiErrorCode(err: unknown): string | undefined {
+  return (err as { data?: { error?: string } })?.data?.error
+}
+
 interface GoogleHealthStatus {
   connected: boolean
   healthUserId?: string
+  syncEnabled?: boolean
   lastFullBackfillAt?: string
   lastIncrementalSyncAt?: string
 }
@@ -31,14 +37,16 @@ export const useGoogleHealthStore = defineStore('googlehealth', () => {
     }
   }
 
-  /** connect redirects the browser to Google's OAuth consent screen. */
+  /** connect redirects the browser to Google's OAuth consent screen. Returns false if the redirect could not be started. */
   async function connect() {
     error.value = null
     try {
       const { url } = await apiFetch<{ url: string }>('/api/google/auth-url')
       window.location.href = url
+      return true
     } catch {
       error.value = 'Failed to start Google connection. Please try again.'
+      return false
     }
   }
 
@@ -70,8 +78,7 @@ export const useGoogleHealthStore = defineStore('googlehealth', () => {
       // A 409 with "reconnect_required" means the stored Google credentials
       // have expired or been revoked. Flip to disconnected so the UI offers a
       // reconnect button instead of a dead "Sync now".
-      const body = (err as { data?: { error?: string } })?.data
-      if (body?.error === 'reconnect_required') {
+      if (apiErrorCode(err) === 'reconnect_required') {
         status.value = { connected: false }
         reconnectRequired.value = true
         error.value = 'Your Google Health connection has expired. Please reconnect.'
@@ -83,5 +90,24 @@ export const useGoogleHealthStore = defineStore('googlehealth', () => {
     }
   }
 
-  return { status, loading, syncing, error, reconnectRequired, fetchStatus, connect, disconnect, sync }
+  /**
+   * setSyncEnabled pauses or resumes syncing without discarding the stored
+   * Google connection. If there is no connection to pause/resume (e.g. it
+   * was never made, or expired), falls back to starting a fresh connect.
+   */
+  async function setSyncEnabled(enabled: boolean) {
+    error.value = null
+    try {
+      await apiFetch('/api/google/sync-enabled', { method: 'POST', body: { enabled } })
+      await fetchStatus()
+    } catch (err) {
+      if (enabled && apiErrorCode(err) === 'reconnect_required') {
+        await connect()
+        return
+      }
+      error.value = 'Failed to update Google Health sync setting. Please try again.'
+    }
+  }
+
+  return { status, loading, syncing, error, reconnectRequired, fetchStatus, connect, disconnect, sync, setSyncEnabled }
 })

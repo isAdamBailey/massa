@@ -11,6 +11,26 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const existsActiveEnergyForDate = `-- name: ExistsActiveEnergyForDate :one
+SELECT EXISTS (
+    SELECT 1 FROM active_energy_entries
+    WHERE user_id = $1
+      AND day = $2
+) AS exists
+`
+
+type ExistsActiveEnergyForDateParams struct {
+	UserID pgtype.UUID `json:"user_id"`
+	Day    pgtype.Date `json:"day"`
+}
+
+func (q *Queries) ExistsActiveEnergyForDate(ctx context.Context, arg ExistsActiveEnergyForDateParams) (bool, error) {
+	row := q.db.QueryRow(ctx, existsActiveEnergyForDate, arg.UserID, arg.Day)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
+}
+
 const listActiveEnergyEntries = `-- name: ListActiveEnergyEntries :many
 SELECT id, user_id, day, active_energy_kcal, source, created_at, updated_at FROM active_energy_entries
 WHERE user_id = $1

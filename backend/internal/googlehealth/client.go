@@ -113,27 +113,33 @@ func (c *Client) GetIdentity(ctx context.Context) (Identity, error) {
 }
 
 // ListWeightDataPoints fetches one page of the user's weight history. Pass
-// an empty pageToken for the first page.
-func (c *Client) ListWeightDataPoints(ctx context.Context, healthUserID, pageToken string) (ListDataPointsResponse, error) {
-	return c.listDataPoints(ctx, healthUserID, "weight", pageToken)
+// an empty pageToken for the first page. If filter is non-empty, it is sent
+// as the API's AIP-160 filter query parameter (e.g. to bound results to
+// weight.sample_time.physical_time >= some watermark).
+func (c *Client) ListWeightDataPoints(ctx context.Context, healthUserID, pageToken, filter string) (ListDataPointsResponse, error) {
+	return c.listDataPoints(ctx, healthUserID, "weight", pageToken, filter)
 }
 
 // ListHeightDataPoints fetches one page of the user's height history. Pass
-// an empty pageToken for the first page.
-func (c *Client) ListHeightDataPoints(ctx context.Context, healthUserID, pageToken string) (ListDataPointsResponse, error) {
-	return c.listDataPoints(ctx, healthUserID, "height", pageToken)
+// an empty pageToken for the first page. See ListWeightDataPoints for filter.
+func (c *Client) ListHeightDataPoints(ctx context.Context, healthUserID, pageToken, filter string) (ListDataPointsResponse, error) {
+	return c.listDataPoints(ctx, healthUserID, "height", pageToken, filter)
 }
 
 // ListActiveEnergyDataPoints fetches one page of the user's active energy
-// burned history. Pass an empty pageToken for the first page.
-func (c *Client) ListActiveEnergyDataPoints(ctx context.Context, healthUserID, pageToken string) (ListDataPointsResponse, error) {
-	return c.listDataPoints(ctx, healthUserID, "active-energy-burned", pageToken)
+// burned history. Pass an empty pageToken for the first page. See
+// ListWeightDataPoints for filter.
+func (c *Client) ListActiveEnergyDataPoints(ctx context.Context, healthUserID, pageToken, filter string) (ListDataPointsResponse, error) {
+	return c.listDataPoints(ctx, healthUserID, "active-energy-burned", pageToken, filter)
 }
 
-func (c *Client) listDataPoints(ctx context.Context, healthUserID, dataType, pageToken string) (ListDataPointsResponse, error) {
+func (c *Client) listDataPoints(ctx context.Context, healthUserID, dataType, pageToken, filter string) (ListDataPointsResponse, error) {
 	query := url.Values{"pageSize": {strconv.Itoa(maxPageSize)}}
 	if pageToken != "" {
 		query.Set("pageToken", pageToken)
+	}
+	if filter != "" {
+		query.Set("filter", filter)
 	}
 
 	path := fmt.Sprintf("/users/%s/dataTypes/%s/dataPoints", url.PathEscape(healthUserID), dataType)
