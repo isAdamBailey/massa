@@ -33,7 +33,7 @@ onMounted(async () => {
             </span>
             Massa
           </h1>
-          <p class="text-body text-fog">
+          <p class="text-body text-mist">
             Sign in
           </p>
         </div>
@@ -45,7 +45,7 @@ onMounted(async () => {
           <p
             v-if="status === 'verifying'"
             key="verifying"
-            class="text-center text-body text-fog"
+            class="text-center text-body text-mist"
           >
             Signing you in…
           </p>

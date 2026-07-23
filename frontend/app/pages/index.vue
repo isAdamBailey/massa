@@ -9,7 +9,7 @@ const settings = useSettingsStore()
 const google = useGoogleHealthStore()
 const { kgToLb } = useBmi()
 
-type RangePreset = '7d' | '30d' | '90d' | '1y' | 'all'
+type RangePreset = '7d' | '30d' | '90d' | '6m' | '1y' | 'all'
 type ChartViewMode = 'daily' | 'weekly'
 type ChartMetricMode = 'weight' | 'bmi' | 'energy' | 'overwhelm'
 
@@ -21,6 +21,7 @@ const rangePresets: { value: RangePreset, label: string }[] = [
   { value: '7d', label: '7 days' },
   { value: '30d', label: '30 days' },
   { value: '90d', label: '90 days' },
+  { value: '6m', label: '6 months' },
   { value: '1y', label: '1 year' },
   { value: 'all', label: 'All time' }
 ]
@@ -29,6 +30,7 @@ const presetDays: Record<RangePreset, number | null> = {
   '7d': 7,
   '30d': 30,
   '90d': 90,
+  '6m': 182,
   '1y': 365,
   all: null
 }
@@ -53,6 +55,7 @@ async function loadEntries() {
 }
 
 const { computeWeightTrend, computeEnergyTrend, computeVerdict, verdictLabel } = useWeekVerdict()
+const { computeCurrentWeekSummary, elevatedTagParts } = useOverwhelmSummary()
 
 /**
  * The weight tab of LogCard already syncs with Google (pulling in fresh
@@ -97,6 +100,20 @@ const latestWeightDisplay = computed(() => {
 
 const weekVerdict = computed(() => computeVerdict(computeWeightTrend(displayEntries.value), computeEnergyTrend(activeEnergy.entries)))
 const weekVerdictLabel = computed(() => verdictLabel(weekVerdict.value))
+
+const weekOverwhelm = computed(() => computeCurrentWeekSummary(overwhelm.entries))
+const weekOverwhelmAverageDisplay = computed(() => {
+  if (!weekOverwhelm.value) {
+    return null
+  }
+  return weekOverwhelm.value.average.toFixed(1)
+})
+const weekOverwhelmTagParts = computed(() => {
+  if (!weekOverwhelm.value?.elevated) {
+    return null
+  }
+  return elevatedTagParts(weekOverwhelm.value.topTags)
+})
 
 onMounted(async () => {
   await Promise.all([loadEntries(), settings.fetchSettings(), google.fetchStatus()])
@@ -144,10 +161,10 @@ function formatDate(value?: string) {
       </section>
 
       <section
-        v-if="latestEntry"
+        v-if="latestEntry || weekOverwhelm"
         class="grid grid-cols-2 gap-x-6 gap-y-5 rounded-md bg-slate p-5"
       >
-        <div>
+        <div v-if="latestEntry">
           <dt class="text-label text-fog">
             Latest weight
           </dt>
@@ -155,7 +172,7 @@ function formatDate(value?: string) {
             {{ latestWeightDisplay }}<span class="text-label font-sans text-fog"> {{ weightUnitLabel }}</span>
           </dd>
         </div>
-        <div>
+        <div v-if="latestEntry">
           <dt class="text-label text-fog">
             This week
           </dt>
@@ -205,6 +222,36 @@ function formatDate(value?: string) {
             >{{ weekVerdictLabel }}</span>
           </dd>
         </div>
+
+        <div
+          v-if="weekOverwhelm"
+          class="col-span-2 grid grid-cols-2 gap-x-6 gap-y-3 border-t border-hairline pt-5"
+        >
+          <div>
+            <dt class="text-label text-fog">
+              Avg overwhelm
+            </dt>
+            <dd class="text-display font-mono tabular-nums text-cobalt">
+              {{ weekOverwhelmAverageDisplay }}<span class="text-label font-sans text-fog"> / 10</span>
+            </dd>
+          </div>
+          <div v-if="weekOverwhelmTagParts">
+            <dt class="text-label text-fog">
+              Tags
+            </dt>
+            <dd class="pt-1 text-body text-mist text-pretty">
+              {{ weekOverwhelmTagParts.lead }}
+              <template
+                v-for="(tag, index) in weekOverwhelmTagParts.tags"
+                :key="tag"
+              >
+                <span v-if="index > 0">,</span>
+                {{ ' ' }}<span class="font-medium text-cobalt">{{ tag }}</span>
+              </template>
+              {{ ' ' }}{{ weekOverwhelmTagParts.trail }}
+            </dd>
+          </div>
+        </div>
       </section>
 
       <section class="space-y-3 rounded-md bg-slate p-5">
@@ -220,27 +267,13 @@ function formatDate(value?: string) {
       </section>
 
       <section class="space-y-4 rounded-md bg-slate p-5">
-        <div class="flex flex-wrap items-baseline justify-between gap-3">
-          <h2 class="text-title font-sans">
-            Trend
-          </h2>
-          <div class="flex flex-wrap gap-1.5">
-            <button
-              v-for="preset in rangePresets"
-              :key="preset.value"
-              type="button"
-              class="rounded-sm px-3 py-1.5 text-label transition-colors duration-150"
-              :class="rangePreset === preset.value ? 'bg-verdigris text-carbon' : 'bg-graphite text-mist hover:bg-graphite-hover'"
-              @click="rangePreset = preset.value"
-            >
-              {{ preset.label }}
-            </button>
-          </div>
-        </div>
+        <h2 class="text-title font-sans">
+          Trend
+        </h2>
 
         <p
           v-if="weights.loading || activeEnergy.loading || overwhelm.loading"
-          class="text-body text-fog"
+          class="text-body text-mist"
         >
           Loading…
         </p>
@@ -252,7 +285,17 @@ function formatDate(value?: string) {
           :active-energy-entries="activeEnergy.entries"
           :overwhelm-entries="overwhelm.entries"
           :units-preference="settings.settings.unitsPreference"
-        />
+        >
+          <template #range>
+            <SegmentedControl
+              v-model="rangePreset"
+              :options="rangePresets"
+              group-label="Time span"
+              emphasis="quiet"
+              scrollable
+            />
+          </template>
+        </MetricChart>
 
         <p
           v-if="weights.error"

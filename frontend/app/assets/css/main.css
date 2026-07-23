@@ -2,14 +2,20 @@
 @import "tailwindcss";
 
 @theme {
-  /* Quiet Gauge palette */
-  --color-carbon: oklch(0.16 0 0);
-  --color-slate: oklch(0.22 0.005 170);
-  --color-graphite: oklch(0.28 0.006 170);
-  --color-graphite-hover: oklch(0.33 0.007 170);
-  --color-hairline: oklch(0.32 0.006 170);
-  --color-mist: oklch(0.95 0.003 170);
-  --color-fog: oklch(0.64 0.01 170);
+  /*
+   * Quiet Gauge palette — Restrained.
+   * Surface steps are deliberately wide (Carbon → Slate ≈ +0.14 L) so
+   * cards read as raised panels, not black-on-black. Neutrals tint toward
+   * verdigris (hue 170) for cohesion; Fog is bright enough for AA labels
+   * on Slate, not a washed-out mid-gray.
+   */
+  --color-carbon: oklch(0.13 0.01 170);
+  --color-slate: oklch(0.27 0.016 170);
+  --color-graphite: oklch(0.35 0.018 170);
+  --color-graphite-hover: oklch(0.41 0.018 170);
+  --color-hairline: oklch(0.44 0.014 170);
+  --color-mist: oklch(0.96 0.006 170);
+  --color-fog: oklch(0.78 0.015 170);
   --color-verdigris: oklch(0.70 0.09 170);
   --color-verdigris-hover: oklch(0.76 0.09 170);
   --color-copper: oklch(0.72 0.12 55);
@@ -62,6 +68,12 @@
 
   body {
     background-color: var(--color-carbon);
+    background-image: radial-gradient(
+      ellipse 120% 70% at 50% -10%,
+      oklch(0.20 0.028 170),
+      var(--color-carbon) 65%
+    );
+    background-attachment: fixed;
     color: var(--color-mist);
     font-family: var(--font-sans);
   }

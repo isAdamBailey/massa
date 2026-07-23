@@ -91,7 +91,7 @@ async function onDelete(id: string) {
   <div>
     <p
       v-if="!sortedEntries.length"
-      class="text-body text-fog"
+      class="text-body text-mist"
     >
       No entries in the last 7 days.
     </p>

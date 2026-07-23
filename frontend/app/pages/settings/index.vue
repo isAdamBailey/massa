@@ -172,7 +172,7 @@ async function onArchiveTag(id: string) {
                 step="0.1"
                 min="0"
                 placeholder="Used when no synced height is available"
-                class="mt-1 w-full rounded-sm bg-graphite px-3 py-2 text-body text-mist placeholder:text-[oklch(0.70_0.01_170)]"
+                class="mt-1 w-full rounded-sm bg-graphite px-3 py-2 text-body text-mist placeholder:text-fog/55"
               >
             </div>
           </div>
@@ -185,7 +185,7 @@ async function onArchiveTag(id: string) {
           </p>
           <p
             v-else-if="saved"
-            class="text-body text-fog"
+            class="text-body text-mist"
           >
             Settings saved.
           </p>
@@ -207,7 +207,7 @@ async function onArchiveTag(id: string) {
 
         <p
           v-if="google.loading"
-          class="text-body text-fog"
+          class="text-body text-mist"
         >
           Loading…
         </p>
@@ -270,7 +270,7 @@ async function onArchiveTag(id: string) {
         <h2 class="text-title font-sans">
           Overwhelm tags
         </h2>
-        <p class="text-body text-fog">
+        <p class="text-body text-mist">
           Keywords you can attach to an overwhelm entry to describe why.
           Removing a tag keeps it on any day it was already logged.
         </p>
@@ -336,7 +336,7 @@ async function onArchiveTag(id: string) {
         </ul>
         <p
           v-else
-          class="text-body text-fog"
+          class="text-body text-mist"
         >
           No tags yet.
         </p>
@@ -350,7 +350,7 @@ async function onArchiveTag(id: string) {
             type="text"
             placeholder="New tag"
             maxlength="30"
-            class="min-w-0 flex-1 rounded-sm bg-graphite px-3 py-2 text-body text-mist placeholder:text-[oklch(0.70_0.01_170)]"
+            class="min-w-0 flex-1 rounded-sm bg-graphite px-3 py-2 text-body text-mist placeholder:text-fog/55"
           >
           <button
             type="submit"

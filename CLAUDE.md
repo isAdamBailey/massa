@@ -32,19 +32,28 @@ docker compose up --build
 
 ### Backend (`backend/`)
 
+The Compose `backend` service runs the compiled server only (no Go toolchain).
+Run Go commands via the same `golang:1.26-alpine` image the Dockerfile builds
+with — do **not** assume a host `go` binary:
+
 ```sh
-go run ./cmd/server                 # run the API server (applies migrations on startup)
-go run ./cmd/migrate                 # apply migrations only (uses DATABASE_URL)
-go test ./...                        # all tests
-go test ./internal/weights/...       # single package
-go test ./internal/weights/ -run TestService_Create_ComputesBMI -v  # single test
-go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@latest run ./...
+# helper: from repo root
+alias massa-go='docker run --rm -v "$PWD/backend:/src" -w /src golang:1.26-alpine'
+
+massa-go go test ./...               # all tests
+massa-go go test ./internal/weights/...
+massa-go go test ./internal/weights/ -run TestService_Create_ComputesBMI -v
+massa-go go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@latest run ./...
 ```
 
-Regenerating sqlc code (**must be run from `backend/`**, where `sqlc.yaml` lives):
+The API server itself is the Compose service (`docker compose up`); migrations
+apply on startup. Standalone migrate / local `go run ./cmd/server` are only
+needed outside Compose.
+
+Regenerating sqlc code (**must be run against `backend/`**, where `sqlc.yaml` lives):
 
 ```sh
-go run github.com/sqlc-dev/sqlc/cmd/sqlc@latest generate
+massa-go go run github.com/sqlc-dev/sqlc/cmd/sqlc@latest generate
 ```
 
 Queries live in `db/queries/*.sql`; generated code lands in `internal/db/`.
@@ -171,19 +180,34 @@ primary key.
   fetch.
 - `app/middleware/auth.global.ts` — redirects unauthenticated users to
   `/login`, calling `auth.fetchMe()` once on first navigation.
+- `app/components/SegmentedControl.vue` — shared toggle group with
+  `emphasis: 'primary' | 'quiet'`. Primary uses a Graphite track and the
+  metric accent for the active option; quiet is trackless Fog/Mist chips
+  (no accent) for secondary controls. `stretch` lays primary options out as
+  a 2-column grid on small screens and a flex row from `sm` up. `scrollable`
+  keeps long quiet option sets (time spans) in a horizontal touch scroller
+  so every option stays a ≥44px tap target. All options use `min-h-11`.
 - `app/components/MetricChart.vue` — Chart.js chart (via vue-chartjs +
-  chartjs-adapter-date-fns) with a metric switcher (weight/BMI/active
-  energy/overwhelm) and a daily/weekly view toggle, unit-aware. In
-  overwhelm mode the tooltip footer shows that day's tags (daily) or the
-  week's top 3 tags by frequency (weekly), computed client-side from
-  already-fetched entries.
+  chartjs-adapter-date-fns). Control hierarchy: primary metric switcher
+  (weight/BMI/energy/overwhelm, accent-aware) on its own row; quiet
+  daily/weekly aggregation beside a `#range` slot for the parent’s time-span
+  control. Unit-aware. In overwhelm mode the tooltip footer shows that day's
+  tags (daily) or the week's top 3 tags by frequency (weekly), computed
+  client-side from already-fetched entries.
+- `app/composables/useOverwhelm.ts` — `OVERWHELM_BASELINE` (3) and
+  `useOverwhelmSummary()`, which averages the current Monday-starting week
+  and, when that average is **over** `OVERWHELM_ELEVATED_THRESHOLD` (4),
+  returns the top 2 tags by frequency for the dashboard sentence.
 - `app/components/LogCard.vue` — tabbed daily-entry card (Weight /
   Overwhelm); defaults to whichever metric isn't logged yet today, since
   the two are typically logged at different times of day. The overwhelm
   tab's tag chips are optional — a bare 1-10 tap-and-save with no tags is
   the fast path.
-- `app/pages/index.vue` — dashboard: latest weight/BMI, date-range presets,
-  chart, the Log card, Google sync status banner.
+- `app/pages/index.vue` — dashboard: latest weight + this-week verdict,
+  current-week avg overwhelm (cobalt) with elevated top-tag sentence, Log
+  card, Trend chart, Google sync status banner. Trend time spans are
+  7d / 30d / 90d / **6m (182 days)** / 1y / all, passed into MetricChart
+  via the `#range` slot as a quiet scrollable `SegmentedControl`.
 - `app/pages/settings/index.vue` — Google Health connect/disconnect/sync,
   units preference, manual height override, and the overwhelm tag
   vocabulary editor (create/rename/archive).

@@ -2,13 +2,13 @@
 name: Massa
 description: A calm, private instrument panel for tracking weight, BMI, and other personal metrics over time
 colors:
-  carbon: "oklch(0.16 0 0)"
-  slate: "oklch(0.22 0.005 170)"
-  graphite: "oklch(0.28 0.006 170)"
-  graphite-hover: "oklch(0.33 0.007 170)"
-  hairline: "oklch(0.32 0.006 170)"
-  mist: "oklch(0.95 0.003 170)"
-  fog: "oklch(0.64 0.01 170)"
+  carbon: "oklch(0.13 0.01 170)"
+  slate: "oklch(0.27 0.016 170)"
+  graphite: "oklch(0.35 0.018 170)"
+  graphite-hover: "oklch(0.41 0.018 170)"
+  hairline: "oklch(0.44 0.014 170)"
+  mist: "oklch(0.96 0.006 170)"
+  fog: "oklch(0.78 0.015 170)"
   verdigris: "oklch(0.70 0.09 170)"
   verdigris-hover: "oklch(0.76 0.09 170)"
   ember: "oklch(0.62 0.17 25)"
@@ -107,7 +107,8 @@ streaks, badges, and gradient "you crushed it!" energy. Weight and BMI are
 presented as readings, not scores.
 
 **Key Characteristics:**
-- Near-black carbon surface; depth comes from tonal steps, not shadows or borders.
+- Deep carbon page with clearly lifted Slate panels — depth from wide tonal
+  steps, not shadows or borders.
 - One accent color (verdigris, an oxidized-teal) — reserved for the single
   thing on screen that matters right now.
 - Numerals set in a monospaced face with tabular figures, so readings feel
@@ -119,6 +120,8 @@ presented as readings, not scores.
 
 A near-monochrome dark palette with a single living accent. Strategy:
 **Restrained** — the accent appears on at most one element class per screen.
+Surface contrast is intentional: cards must read as raised panels against
+the page, not black tiles on a black field.
 
 ### Primary
 - **Verdigris** (`oklch(0.70 0.09 170)`): the one accent. Used for the
@@ -132,23 +135,27 @@ A near-monochrome dark palette with a single living accent. Strategy:
   Verdigris elements always pair with Carbon text (~7.6:1).
 
 ### Neutral
-- **Carbon** (`oklch(0.16 0 0)`): the base surface — page background. Pure
-  neutral, no hue tint, so Verdigris reads as the only color in the room.
-- **Slate** (`oklch(0.22 0.005 170)`): one tonal step up from Carbon. Used
-  for cards/sections (the dashboard panels, settings sections).
-- **Graphite** (`oklch(0.28 0.006 170)`): a second tonal step up. Used for
-  inputs, inactive segmented-control options, and secondary/ghost buttons —
+- **Carbon** (`oklch(0.13 0.01 170)`): the base surface — page background.
+  Slightly deeper than before, tinted toward verdigris so it sits in the
+  same family as the panels. A soft radial wash (same hue, low chroma)
+  sits behind the page to keep the field from reading as flat dead black.
+- **Slate** (`oklch(0.27 0.016 170)`): clearly lifted from Carbon
+  (~+0.14 L). Used for cards/sections (dashboard panels, settings). This
+  step is the primary elevation signal — if cards disappear into the page,
+  the ramp is too tight.
+- **Graphite** (`oklch(0.35 0.018 170)`): nested one step above Slate. Used
+  for inputs, inactive segmented-control options, and secondary buttons —
   things that sit "inside" a Slate card.
-- **Graphite Hover** (`oklch(0.33 0.007 170)`): hover state for Graphite
+- **Graphite Hover** (`oklch(0.41 0.018 170)`): hover state for Graphite
   surfaces.
-- **Hairline** (`oklch(0.32 0.006 170)`): the only border color in the
+- **Hairline** (`oklch(0.44 0.014 170)`): the only border color in the
   system, used at 1px and only where a divider is structurally necessary
   (e.g. between rows in the entry list). Not used to outline cards.
-- **Mist** (`oklch(0.95 0.003 170)`): primary text. Near-white with a
-  whisper of the accent hue so it never looks like print-shop gray-on-black.
-- **Fog** (`oklch(0.64 0.01 170)`): secondary/meta text — timestamps, units,
-  helper labels. Reaches ~5:1 against Carbon; never used for body copy a
-  user must read closely.
+- **Mist** (`oklch(0.96 0.006 170)`): primary text and any body copy the
+  user must actually read. Near-white with a whisper of the accent hue.
+- **Fog** (`oklch(0.78 0.015 170)`): secondary/meta text — timestamps,
+  units, field labels. Kept bright enough for AA on Slate (~6:1+); never
+  used for body copy a user must read closely (that stays Mist).
 
 ### Semantic
 - **Ember** (`oklch(0.62 0.17 25)`): form-validation errors and the
@@ -228,11 +235,25 @@ hover. If an element needs to feel interactive, shift it one tonal step
   get a 2px Verdigris focus ring (`outline: 2px solid oklch(0.70 0.09 170)`,
   offset 2px) for keyboard navigation.
 
-### Segmented Controls (range presets, daily/weekly, weight/BMI toggles)
-- **Style:** a row of `button-secondary`-shaped pills (6px radius, Graphite
-  background, Mist text) where the active option becomes `button-primary`
-  (Verdigris fill, Carbon text). Exactly one option per group may glow — this
-  is one of the system's sanctioned uses of the Single Glow Rule.
+### Segmented Controls
+Two emphases share one component (`SegmentedControl.vue`):
+
+- **Primary** (metric type on Trend, tabs on Log / Recent entries): Graphite
+  track, active option filled with the metric accent (Verdigris / Copper /
+  Cobalt) and Carbon text. On narrow viewports a stretched primary control
+  becomes a 2-column grid so four options stay tappable; from `sm` up it
+  returns to a single flex row. Exactly one option per group may glow — a
+  sanctioned use of the Single Glow Rule.
+- **Quiet** (daily/weekly aggregation, time-span presets): no Graphite track,
+  no accent fill. Inactive options are Fog text; the active option is Mist on
+  a Hairline chip. Used so secondary chart controls never compete with the
+  metric switcher. Long quiet sets (time span: 7 days → All time, including
+  6 months) set `scrollable` so options stay full-size tap targets in a
+  horizontal, scrollbar-hidden scroller instead of wrapping into tiny chips.
+
+**Touch:** every option is at least 44px tall (`min-h-11`). Quiet controls
+stack under the metric switcher on phones; aggregation and time span sit on
+one row from `sm` up.
 
 ### Cards / Containers (`surface-card`)
 - **Corner Style:** 10px radius (`{rounded.md}`).

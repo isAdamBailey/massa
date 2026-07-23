@@ -27,7 +27,7 @@ async function onSubmit() {
             </span>
             Massa
           </h1>
-          <p class="text-body text-fog">
+          <p class="text-body text-mist">
             Sign in with your email
           </p>
         </div>
@@ -53,7 +53,7 @@ async function onSubmit() {
                 required
                 placeholder="you@example.com"
                 autocomplete="email"
-                class="mt-1 w-full rounded-sm bg-graphite px-3 py-2 text-body text-mist placeholder:text-[oklch(0.70_0.01_170)]"
+                class="mt-1 w-full rounded-sm bg-graphite px-3 py-2 text-body text-mist placeholder:text-fog/55"
               >
             </div>
 
@@ -75,7 +75,7 @@ async function onSubmit() {
 
           <p
             v-else
-            class="text-center text-body text-fog"
+            class="text-center text-body text-mist"
           >
             If that email is allowed to sign in, a link has been sent. Check your
             inbox and click the link to continue.

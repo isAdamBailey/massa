@@ -48,7 +48,7 @@ const metricMode = defineModel<MetricMode>('metricMode', { default: 'weight' })
 const metricOptions: SegmentedOption<MetricMode>[] = [
   { value: 'weight', label: 'Weight' },
   { value: 'bmi', label: 'BMI' },
-  { value: 'energy', label: 'Active energy' },
+  { value: 'energy', label: 'Energy' },
   { value: 'overwhelm', label: 'Overwhelm' }
 ]
 
@@ -57,10 +57,10 @@ const viewOptions: SegmentedOption<ViewMode>[] = [
   { value: 'weekly', label: 'Weekly' }
 ]
 
-const FOG = 'oklch(0.64 0.01 170)'
-const HAIRLINE = 'oklch(0.32 0.006 170)'
-const GRAPHITE = 'oklch(0.28 0.006 170)'
-const MIST = 'oklch(0.95 0.003 170)'
+const FOG = 'oklch(0.78 0.015 170)'
+const HAIRLINE = 'oklch(0.44 0.014 170)'
+const GRAPHITE = 'oklch(0.35 0.018 170)'
+const MIST = 'oklch(0.96 0.006 170)'
 const AMBER = 'oklch(0.75 0.14 80)'
 const AMBER_WASH = 'oklch(0.75 0.14 80 / 0.10)'
 const EMBER = 'oklch(0.62 0.17 25)'
@@ -195,7 +195,7 @@ const bmiZonesPlugin: Plugin<'line'> = {
     const paddingX = 6
     const boxHeight = 18
     const boxY = Math.min(Math.max(y - boxHeight / 2, chartArea.top), chartArea.bottom - boxHeight)
-    ctx.fillStyle = 'oklch(0.22 0.005 170 / 0.85)'
+    ctx.fillStyle = 'oklch(0.27 0.016 170 / 0.85)'
     ctx.fillRect(chartArea.left + 4, boxY, textWidth + paddingX * 2, boxHeight)
     ctx.fillStyle = MIST
     ctx.textAlign = 'left'
@@ -384,19 +384,25 @@ const chartOptions = computed(() => ({
 
 <template>
   <div>
-    <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
+    <div class="mb-4 space-y-3">
       <SegmentedControl
         v-model="metricMode"
         :options="metricOptions"
         group-label="Metric"
         :accent="chartAccent"
+        stretch
       />
-      <SegmentedControl
-        v-model="viewMode"
-        :options="viewOptions"
-        group-label="Range"
-        emphasis="quiet"
-      />
+      <div class="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
+        <SegmentedControl
+          v-model="viewMode"
+          :options="viewOptions"
+          group-label="Aggregation"
+          emphasis="quiet"
+        />
+        <div class="min-w-0 sm:max-w-full">
+          <slot name="range" />
+        </div>
+      </div>
     </div>
     <div
       class="h-64 rounded-sm p-3 transition-[background-color] duration-200"
@@ -405,7 +411,7 @@ const chartOptions = computed(() => ({
       <div class="h-full rounded-sm bg-graphite/55 px-1 pt-2 pb-1">
         <p
           v-if="!hasData"
-          class="flex h-full items-center justify-center text-body text-fog"
+          class="flex h-full items-center justify-center text-body text-mist"
         >
           <template v-if="metricMode === 'bmi'">
             No BMI data available.

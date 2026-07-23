@@ -114,7 +114,7 @@ async function saveEdit(day: string) {
   <div>
     <p
       v-if="!sortedEntries.length"
-      class="text-body text-fog"
+      class="text-body text-mist"
     >
       No overwhelm entries in the last 7 days.
     </p>
