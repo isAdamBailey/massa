@@ -203,11 +203,12 @@ primary key.
   the two are typically logged at different times of day. The overwhelm
   tab's tag chips are optional — a bare 1-10 tap-and-save with no tags is
   the fast path.
-- `app/pages/index.vue` — dashboard: latest weight + this-week verdict,
-  current-week avg overwhelm (cobalt) with elevated top-tag sentence, Log
-  card, Trend chart, Google sync status banner. Trend time spans are
-  7d / 30d / 90d / **6m (182 days)** / 1y / all, passed into MetricChart
-  via the `#range` slot as a quiet scrollable `SegmentedControl`.
+- `app/pages/index.vue` — dashboard: latest weight + this-week verdict;
+  overwhelm block only when current-week avg is **over 4** (cobalt avg +
+  top 2 tags). Log card, Trend chart, Google sync status banner. Trend
+  time spans are 7d / 30d / 90d / **6m (182 days)** / 1y / all, passed
+  into MetricChart via the `#range` slot as a quiet scrollable
+  `SegmentedControl`.
 - `app/pages/settings/index.vue` — Google Health connect/disconnect/sync,
   units preference, manual height override, and the overwhelm tag
   vocabulary editor (create/rename/archive).

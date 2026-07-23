@@ -101,18 +101,22 @@ const latestWeightDisplay = computed(() => {
 const weekVerdict = computed(() => computeVerdict(computeWeightTrend(displayEntries.value), computeEnergyTrend(activeEnergy.entries)))
 const weekVerdictLabel = computed(() => verdictLabel(weekVerdict.value))
 
-const weekOverwhelm = computed(() => computeCurrentWeekSummary(overwhelm.entries))
-const weekOverwhelmAverageDisplay = computed(() => {
-  if (!weekOverwhelm.value) {
-    return null
-  }
-  return weekOverwhelm.value.average.toFixed(1)
+/** Only surfaces when this week's avg overwhelm is over 4. */
+const elevatedWeekOverwhelm = computed(() => {
+  const summary = computeCurrentWeekSummary(overwhelm.entries)
+  return summary?.elevated ? summary : null
 })
-const weekOverwhelmTagParts = computed(() => {
-  if (!weekOverwhelm.value?.elevated) {
+const elevatedWeekOverwhelmAverage = computed(() => {
+  if (!elevatedWeekOverwhelm.value) {
     return null
   }
-  return elevatedTagParts(weekOverwhelm.value.topTags)
+  return elevatedWeekOverwhelm.value.average.toFixed(1)
+})
+const elevatedWeekOverwhelmTagParts = computed(() => {
+  if (!elevatedWeekOverwhelm.value) {
+    return null
+  }
+  return elevatedTagParts(elevatedWeekOverwhelm.value.topTags)
 })
 
 onMounted(async () => {
@@ -161,7 +165,7 @@ function formatDate(value?: string) {
       </section>
 
       <section
-        v-if="latestEntry || weekOverwhelm"
+        v-if="latestEntry || elevatedWeekOverwhelm"
         class="grid grid-cols-2 gap-x-6 gap-y-5 rounded-md bg-slate p-5"
       >
         <div v-if="latestEntry">
@@ -224,7 +228,7 @@ function formatDate(value?: string) {
         </div>
 
         <div
-          v-if="weekOverwhelm"
+          v-if="elevatedWeekOverwhelm"
           class="col-span-2 grid grid-cols-2 gap-x-6 gap-y-3 border-t border-hairline pt-5"
         >
           <div>
@@ -232,23 +236,23 @@ function formatDate(value?: string) {
               Avg overwhelm
             </dt>
             <dd class="text-display font-mono tabular-nums text-cobalt">
-              {{ weekOverwhelmAverageDisplay }}<span class="text-label font-sans text-fog"> / 10</span>
+              {{ elevatedWeekOverwhelmAverage }}<span class="text-label font-sans text-fog"> / 10</span>
             </dd>
           </div>
-          <div v-if="weekOverwhelmTagParts">
+          <div v-if="elevatedWeekOverwhelmTagParts">
             <dt class="text-label text-fog">
               Tags
             </dt>
             <dd class="pt-1 text-body text-mist text-pretty">
-              {{ weekOverwhelmTagParts.lead }}
+              {{ elevatedWeekOverwhelmTagParts.lead }}
               <template
-                v-for="(tag, index) in weekOverwhelmTagParts.tags"
+                v-for="(tag, index) in elevatedWeekOverwhelmTagParts.tags"
                 :key="tag"
               >
                 <span v-if="index > 0">,</span>
                 {{ ' ' }}<span class="font-medium text-cobalt">{{ tag }}</span>
               </template>
-              {{ ' ' }}{{ weekOverwhelmTagParts.trail }}
+              {{ ' ' }}{{ elevatedWeekOverwhelmTagParts.trail }}
             </dd>
           </div>
         </div>
@@ -271,31 +275,28 @@ function formatDate(value?: string) {
           Trend
         </h2>
 
-        <p
-          v-if="weights.loading || activeEnergy.loading || overwhelm.loading"
-          class="text-body text-mist"
+        <div
+          :aria-busy="weights.loading || activeEnergy.loading || overwhelm.loading"
         >
-          Loading…
-        </p>
-        <MetricChart
-          v-else
-          v-model:view-mode="chartViewMode"
-          v-model:metric-mode="chartMetricMode"
-          :entries="displayEntries"
-          :active-energy-entries="activeEnergy.entries"
-          :overwhelm-entries="overwhelm.entries"
-          :units-preference="settings.settings.unitsPreference"
-        >
-          <template #range>
-            <SegmentedControl
-              v-model="rangePreset"
-              :options="rangePresets"
-              group-label="Time span"
-              emphasis="quiet"
-              scrollable
-            />
-          </template>
-        </MetricChart>
+          <MetricChart
+            v-model:view-mode="chartViewMode"
+            v-model:metric-mode="chartMetricMode"
+            :entries="displayEntries"
+            :active-energy-entries="activeEnergy.entries"
+            :overwhelm-entries="overwhelm.entries"
+            :units-preference="settings.settings.unitsPreference"
+          >
+            <template #range>
+              <SegmentedControl
+                v-model="rangePreset"
+                :options="rangePresets"
+                group-label="Time span"
+                emphasis="quiet"
+                scrollable
+              />
+            </template>
+          </MetricChart>
+        </div>
 
         <p
           v-if="weights.error"
