@@ -49,8 +49,7 @@ const logMetrics: LogMetric[] = [
 
 const tabOptions: SegmentedOption<LogTab>[] = logMetrics.map(m => ({ value: m.id, label: m.label }))
 
-const defaultTab = logMetrics[0]!.id
-const activeTab = ref<LogTab>(defaultTab)
+const activeTab = defineModel<LogTab>({ default: 'weight' })
 const tabSeeded = ref(false)
 const fetchSeen = ref(false)
 
@@ -72,7 +71,7 @@ watch(
     }
     tabSeeded.value = true
     const outstanding = logMetrics.find(m => !m.loggedToday())
-    activeTab.value = outstanding?.id ?? defaultTab
+    activeTab.value = outstanding?.id ?? 'weight'
   }
 )
 

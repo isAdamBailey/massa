@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { WeightEntry } from '~/stores/weights'
+import type { ChartMetricMode, LogTab } from '~/composables/useMetricAccent'
 
 const auth = useAuthStore()
 const weights = useWeightsStore()
@@ -11,11 +12,19 @@ const { kgToLb } = useBmi()
 
 type RangePreset = '7d' | '30d' | '90d' | '6m' | '1y' | 'all'
 type ChartViewMode = 'daily' | 'weekly'
-type ChartMetricMode = 'weight' | 'bmi' | 'energy' | 'overwhelm'
 
 const rangePreset = ref<RangePreset>('90d')
 const chartViewMode = ref<ChartViewMode>('weekly')
 const chartMetricMode = ref<ChartMetricMode>('weight')
+const logTab = ref<LogTab>('weight')
+const recentTab = ref<LogTab>('weight')
+
+// Log is the focus control: when it changes, Trend and Recent follow.
+// Those sections can still be toggled independently afterward.
+watch(logTab, (tab) => {
+  chartMetricMode.value = tab
+  recentTab.value = tab
+})
 
 const rangePresets: { value: RangePreset, label: string }[] = [
   { value: '7d', label: '7 days' },
@@ -267,7 +276,10 @@ function formatDate(value?: string) {
             Today
           </p>
         </div>
-        <LogCard @saved="refreshAfterSave" />
+        <LogCard
+          v-model="logTab"
+          @saved="refreshAfterSave"
+        />
       </section>
 
       <section class="space-y-4 rounded-md bg-slate p-5">
@@ -307,7 +319,7 @@ function formatDate(value?: string) {
       </section>
 
       <section class="rounded-md bg-slate p-5">
-        <RecentEntries />
+        <RecentEntries v-model="recentTab" />
       </section>
     </div>
   </div>

@@ -3,7 +3,7 @@ import type { SegmentedOption } from '~/components/SegmentedControl.vue'
 import { accentForLogTab } from '~/composables/useMetricAccent'
 import type { LogTab } from '~/composables/useMetricAccent'
 
-const activeTab = ref<LogTab>('weight')
+const activeTab = defineModel<LogTab>({ default: 'weight' })
 
 const tabOptions: SegmentedOption<LogTab>[] = [
   { value: 'weight', label: 'Weight' },
