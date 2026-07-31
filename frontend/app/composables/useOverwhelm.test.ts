@@ -51,7 +51,7 @@ describe('useOverwhelmSummary', () => {
     expect(summary?.topTags).toEqual([])
   })
 
-  it('surfaces the top 2 tags by frequency when average is over the threshold', () => {
+  it('surfaces the top 3 tags by frequency when average is over the threshold', () => {
     const { computeCurrentWeekSummary } = useOverwhelmSummary()
     const summary = computeCurrentWeekSummary(
       [
@@ -68,8 +68,19 @@ describe('useOverwhelmSummary', () => {
     expect(summary?.average).toBeCloseTo(6, 5)
     expect(summary?.topTags).toEqual([
       { name: 'work', count: 3 },
-      { name: 'kids', count: 1 }
+      { name: 'kids', count: 1 },
+      { name: 'sleep', count: 1 }
     ])
+  })
+
+  it('caps at the top 3 tags when more are tied', () => {
+    const { computeCurrentWeekSummary } = useOverwhelmSummary()
+    const summary = computeCurrentWeekSummary(
+      [entry(thisWeekDays[0], 8, ['dogs', 'kids', 'sleep', 'work'])],
+      thisWeekMonday
+    )
+
+    expect(summary?.topTags.map(t => t.name)).toEqual(['dogs', 'kids', 'sleep'])
   })
 
   it('breaks tag frequency ties alphabetically', () => {
@@ -83,24 +94,5 @@ describe('useOverwhelmSummary', () => {
     )
 
     expect(summary?.topTags.map(t => t.name)).toEqual(['sleep', 'work'])
-  })
-
-  it('elevatedTagParts formats one or two tags for the template', () => {
-    const { elevatedTagParts } = useOverwhelmSummary()
-
-    expect(elevatedTagParts([])).toBeNull()
-    expect(elevatedTagParts([{ name: 'work', count: 2 }])).toEqual({
-      lead: 'Overwhelmed by',
-      tags: ['work'],
-      trail: 'this week.'
-    })
-    expect(elevatedTagParts([
-      { name: 'work', count: 3 },
-      { name: 'sleep', count: 2 }
-    ])).toEqual({
-      lead: 'Overwhelmed by',
-      tags: ['work', 'sleep'],
-      trail: 'this week.'
-    })
   })
 })

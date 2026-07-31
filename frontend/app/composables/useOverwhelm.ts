@@ -13,6 +13,9 @@ export const OVERWHELM_BASELINE = 3
  */
 export const OVERWHELM_ELEVATED_THRESHOLD = 4
 
+/** Matches MetricChart's weekly tooltip, which also surfaces the top 3 tags. */
+const TOP_TAGS_LIMIT = 3
+
 export interface WeekOverwhelmTag {
   name: string
   count: number
@@ -66,7 +69,7 @@ export function useOverwhelmSummary() {
 
     const topTags = Array.from(counts.entries())
       .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
-      .slice(0, 2)
+      .slice(0, TOP_TAGS_LIMIT)
       .map(([name, count]) => ({ name, count }))
 
     return {
@@ -77,20 +80,5 @@ export function useOverwhelmSummary() {
     }
   }
 
-  /**
-   * Builds the short elevated-week sentence. Tag names are returned separately
-   * so the template can color them with the overwhelm accent.
-   */
-  function elevatedTagParts(tags: WeekOverwhelmTag[]): { lead: string, tags: string[], trail: string } | null {
-    if (!tags.length) {
-      return null
-    }
-    return {
-      lead: 'Overwhelmed by',
-      tags: tags.map(t => t.name),
-      trail: 'this week.'
-    }
-  }
-
-  return { computeCurrentWeekSummary, elevatedTagParts }
+  return { computeCurrentWeekSummary }
 }

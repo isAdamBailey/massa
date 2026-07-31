@@ -8,7 +8,6 @@ const activeEnergy = useActiveEnergyStore()
 const overwhelm = useOverwhelmStore()
 const settings = useSettingsStore()
 const google = useGoogleHealthStore()
-const { kgToLb } = useBmi()
 
 type RangePreset = '7d' | '30d' | '90d' | '6m' | '1y' | 'all'
 type ChartViewMode = 'daily' | 'weekly'
@@ -63,8 +62,9 @@ async function loadEntries() {
   ])
 }
 
-const { computeWeightTrend, computeEnergyTrend, computeVerdict, verdictLabel } = useWeekVerdict()
-const { computeCurrentWeekSummary, elevatedTagParts } = useOverwhelmSummary()
+const { computeWeightTrend, computeEnergyTrend, computeVerdict } = useWeekVerdict()
+const { computeCurrentWeekSummary } = useOverwhelmSummary()
+const { buildStatusSentence } = useStatusSentence()
 
 /**
  * The weight tab of LogCard already syncs with Google (pulling in fresh
@@ -95,38 +95,16 @@ const displayEntries = computed(() => {
 
 const latestEntry = computed(() => displayEntries.value.at(-1) ?? null)
 
-const weightUnitLabel = computed(() => settings.settings.unitsPreference === 'imperial' ? 'lb' : 'kg')
-
-const latestWeightDisplay = computed(() => {
-  if (!latestEntry.value) {
-    return null
-  }
-  const weight = settings.settings.unitsPreference === 'imperial'
-    ? kgToLb(latestEntry.value.weightKg)
-    : latestEntry.value.weightKg
-  return weight.toFixed(1)
-})
-
 const weekVerdict = computed(() => computeVerdict(computeWeightTrend(displayEntries.value), computeEnergyTrend(activeEnergy.entries)))
-const weekVerdictLabel = computed(() => verdictLabel(weekVerdict.value))
 
-/** Only surfaces when this week's avg overwhelm is over 4. */
-const elevatedWeekOverwhelm = computed(() => {
-  const summary = computeCurrentWeekSummary(overwhelm.entries)
-  return summary?.elevated ? summary : null
-})
-const elevatedWeekOverwhelmAverage = computed(() => {
-  if (!elevatedWeekOverwhelm.value) {
-    return null
-  }
-  return elevatedWeekOverwhelm.value.average.toFixed(1)
-})
-const elevatedWeekOverwhelmTagParts = computed(() => {
-  if (!elevatedWeekOverwhelm.value) {
-    return null
-  }
-  return elevatedTagParts(elevatedWeekOverwhelm.value.topTags)
-})
+/** Only carries a clause in the status sentence when this week's avg overwhelm is over 4. */
+const currentWeekOverwhelm = computed(() => computeCurrentWeekSummary(overwhelm.entries))
+
+const statusSentence = computed(() => buildStatusSentence(
+  latestEntry.value !== null,
+  weekVerdict.value,
+  currentWeekOverwhelm.value
+))
 
 onMounted(async () => {
   await Promise.all([loadEntries(), settings.fetchSettings(), google.fetchStatus()])
@@ -174,97 +152,18 @@ function formatDate(value?: string) {
       </section>
 
       <section
-        v-if="latestEntry || elevatedWeekOverwhelm"
-        class="grid grid-cols-2 gap-x-6 gap-y-5 rounded-md bg-slate p-5"
+        v-if="statusSentence"
+        class="rounded-md bg-slate p-5"
       >
-        <div v-if="latestEntry">
-          <dt class="text-label text-fog">
-            Latest weight
-          </dt>
-          <dd class="text-display font-mono tabular-nums text-verdigris">
-            {{ latestWeightDisplay }}<span class="text-label font-sans text-fog"> {{ weightUnitLabel }}</span>
-          </dd>
-        </div>
-        <div v-if="latestEntry">
-          <dt class="text-label text-fog">
-            This week
-          </dt>
-          <dd class="flex items-center gap-2 pt-1">
-            <svg
-              v-if="weekVerdict === 'better'"
-              class="h-6 w-6 shrink-0 text-verdigris"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2.5"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              aria-hidden="true"
-            >
-              <path d="M12 19V5M5 12l7-7 7 7" />
-            </svg>
-            <svg
-              v-else-if="weekVerdict === 'worse'"
-              class="h-6 w-6 shrink-0 text-fog"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2.5"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              aria-hidden="true"
-            >
-              <path d="M12 5v14M19 12l-7 7-7-7" />
-            </svg>
-            <svg
-              v-else
-              class="h-6 w-6 shrink-0 text-fog"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2.5"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              aria-hidden="true"
-            >
-              <path d="M5 12h14" />
-            </svg>
-            <span
-              class="text-title font-sans"
-              :class="weekVerdict === 'better' ? 'text-verdigris' : 'text-mist'"
-            >{{ weekVerdictLabel }}</span>
-          </dd>
-        </div>
-
-        <div
-          v-if="elevatedWeekOverwhelm"
-          class="col-span-2 grid grid-cols-2 gap-x-6 gap-y-3 border-t border-hairline pt-5"
-        >
-          <div>
-            <dt class="text-label text-fog">
-              Avg overwhelm
-            </dt>
-            <dd class="text-display font-mono tabular-nums text-cobalt">
-              {{ elevatedWeekOverwhelmAverage }}<span class="text-label font-sans text-fog"> / 10</span>
-            </dd>
-          </div>
-          <div v-if="elevatedWeekOverwhelmTagParts">
-            <dt class="text-label text-fog">
-              Tags
-            </dt>
-            <dd class="pt-1 text-body text-mist text-pretty">
-              {{ elevatedWeekOverwhelmTagParts.lead }}
-              <template
-                v-for="(tag, index) in elevatedWeekOverwhelmTagParts.tags"
-                :key="tag"
-              >
-                <span v-if="index > 0">,</span>
-                {{ ' ' }}<span class="font-medium text-cobalt">{{ tag }}</span>
-              </template>
-              {{ ' ' }}{{ elevatedWeekOverwhelmTagParts.trail }}
-            </dd>
-          </div>
-        </div>
+        <p class="text-pretty text-2xl font-semibold leading-snug text-mist sm:text-3xl">
+          <template
+            v-for="(segment, index) in statusSentence"
+            :key="index"
+          ><span
+            v-if="segment.tag"
+            class="text-cobalt"
+          >{{ segment.text }}</span><template v-else>{{ segment.text }}</template></template>
+        </p>
       </section>
 
       <section class="space-y-3 rounded-md bg-slate p-5">
