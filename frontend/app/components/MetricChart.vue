@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import 'chartjs-adapter-date-fns'
-import { startOfWeek } from 'date-fns'
+import { format, startOfWeek } from 'date-fns'
 import {
   BarController,
   BarElement,
@@ -69,8 +69,27 @@ const EMBER_WASH = 'oklch(0.62 0.17 25 / 0.12)'
 const chartAccent = computed(() => accentForChartMetric(metricMode.value))
 const chartPalette = computed(() => METRIC_ACCENT_OKLCH[chartAccent.value])
 
+// Dot size scales down as points get denser, so a 7-day view (few, spaced-out
+// points) gets a comfortably tappable dot while a multi-year view (dozens of
+// points a few pixels apart) doesn't turn into a solid smear of overlapping
+// circles. Hit radius (the invisible tap target) stays generous either way,
+// since a small visual dot doesn't need a small touch target.
+function pointSizeFor(count: number) {
+  if (count <= 10) {
+    return { radius: 5, hoverRadius: 7, hitRadius: 14 }
+  }
+  if (count <= 30) {
+    return { radius: 4, hoverRadius: 6, hitRadius: 12 }
+  }
+  if (count <= 90) {
+    return { radius: 2.5, hoverRadius: 5, hitRadius: 10 }
+  }
+  return { radius: 1.5, hoverRadius: 4.5, hitRadius: 8 }
+}
+
 function lineSeries(label: string, data: { x: number, y: number }[]) {
   const { solid, fill } = chartPalette.value
+  const { radius, hoverRadius, hitRadius } = pointSizeFor(data.length)
   return {
     datasets: [
       {
@@ -80,8 +99,9 @@ function lineSeries(label: string, data: { x: number, y: number }[]) {
         backgroundColor: fill,
         pointBackgroundColor: solid,
         pointBorderColor: solid,
-        pointRadius: 3,
-        pointHoverRadius: 5,
+        pointRadius: radius,
+        pointHoverRadius: hoverRadius,
+        pointHitRadius: hitRadius,
         borderWidth: 2,
         tension: 0.2,
         fill: 'start' as const
@@ -364,10 +384,24 @@ const chartOptions = computed(() => ({
       bodyColor: MIST,
       borderColor: HAIRLINE,
       borderWidth: 1,
-      padding: 8,
+      padding: 10,
       cornerRadius: 6,
       displayColors: false,
+      titleFont: { family: '"IBM Plex Sans", sans-serif', size: 12, weight: 600 as const },
+      bodyFont: { family: '"IBM Plex Sans", sans-serif', size: 13 },
+      footerFont: { family: '"IBM Plex Sans", sans-serif', size: 11 },
+      titleMarginBottom: 6,
       callbacks: {
+        // Every point lands at local midnight, so the adapter's default
+        // title ("Jan 5, 2026, 12:00:00 AM") is all-clock, no-signal - drop
+        // the time entirely.
+        title: (items: { parsed: { x: number | null } }[]) => {
+          const x = items[0]?.parsed.x
+          if (x == null) {
+            return ''
+          }
+          return viewMode.value === 'weekly' ? `Week of ${format(x, 'MMM d, yyyy')}` : format(x, 'MMM d, yyyy')
+        },
         footer: (items: { parsed: { x: number | null } }[]) => {
           const x = items[0]?.parsed.x
           if (metricMode.value !== 'overwhelm' || x == null) {
