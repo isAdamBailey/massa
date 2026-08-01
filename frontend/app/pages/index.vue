@@ -162,6 +162,9 @@ function formatDate(value?: string) {
           ><span
             v-if="segment.tag"
             class="text-cobalt"
+          >{{ segment.text }}</span><span
+            v-else-if="segment.highlight"
+            class="text-verdigris"
           >{{ segment.text }}</span><template v-else>{{ segment.text }}</template></template>
         </p>
       </section>

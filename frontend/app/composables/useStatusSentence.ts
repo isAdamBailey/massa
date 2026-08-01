@@ -4,6 +4,7 @@ import type { WeekOverwhelmSummary } from '~/composables/useOverwhelm'
 export interface StatusSentenceSegment {
   text: string
   tag?: boolean
+  highlight?: boolean
 }
 
 /**
@@ -15,28 +16,30 @@ export interface StatusSentenceSegment {
  * Massa doesn't grade weeks: every trend gets an affirming read, because
  * steady is a good place to be and a week trending up is just data, not a
  * setback. The one moment of real contrast is when the week still felt
- * heavier than usual despite that - that's where "but" earns its keep.
+ * heavier than usual despite that - that's where "but" earns its keep. The
+ * lead phrase of the weight verdict is flagged `highlight: true` so the
+ * template can color it in the weight accent (verdigris).
  */
 export function useStatusSentence() {
-  function trendClause(verdict: Exclude<WeekVerdict, null>): string {
-    switch (verdict) {
-      case 'better':
-        return 'Trending down this week, with great momentum'
-      case 'worse':
-        return 'Trending up a little this week, and that’s alright, weeks vary'
-      case 'steady':
-        return 'Holding steady this week, a good place to be'
-    }
-  }
-
   function trendLead(verdict: Exclude<WeekVerdict, null>): string {
     switch (verdict) {
       case 'better':
-        return 'Trending down'
+        return 'Doing great'
       case 'worse':
-        return 'Trending up'
+        return 'Pick up the pace a little'
       case 'steady':
         return 'Holding steady'
+    }
+  }
+
+  function trendTail(verdict: Exclude<WeekVerdict, null>): string {
+    switch (verdict) {
+      case 'better':
+        return ' this week — nice momentum!'
+      case 'worse':
+        return ' this week, no worries, it happens.'
+      case 'steady':
+        return ' this week, a good place to be.'
     }
   }
 
@@ -61,18 +64,20 @@ export function useStatusSentence() {
 
     if (weekVerdict === null) {
       return tagNames.length
-        ? [{ text: 'This week has felt heavier than usual, mostly ' }, ...tagSegments(tagNames), { text: '.' }]
-        : [{ text: 'This week has felt heavier than usual.' }]
+        ? [{ text: 'This week’s been a lot, mostly ' }, ...tagSegments(tagNames), { text: '.' }]
+        : [{ text: 'This week’s been a lot.' }]
     }
+
+    const lead: StatusSentenceSegment = { text: trendLead(weekVerdict), highlight: true }
 
     if (!elevated) {
-      return [{ text: `${trendClause(weekVerdict)}.` }]
+      return [lead, { text: trendTail(weekVerdict) }]
     }
 
-    const lead = `${trendLead(weekVerdict)} this week, but it’s felt heavier than usual`
+    const but: StatusSentenceSegment = { text: ' this week, but it’s been a heavier one' }
     return tagNames.length
-      ? [{ text: `${lead}, mostly ` }, ...tagSegments(tagNames), { text: '.' }]
-      : [{ text: `${lead}.` }]
+      ? [lead, but, { text: ', mostly ' }, ...tagSegments(tagNames), { text: '.' }]
+      : [lead, but, { text: '.' }]
   }
 
   return { buildStatusSentence }
