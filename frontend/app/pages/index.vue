@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { WeightEntry } from '~/stores/weights'
 import type { ChartMetricMode, LogTab } from '~/composables/useMetricAccent'
+import type { ViewMode as ChartViewMode } from '~/components/MetricChart.vue'
 
 const auth = useAuthStore()
 const weights = useWeightsStore()
@@ -9,8 +10,7 @@ const overwhelm = useOverwhelmStore()
 const settings = useSettingsStore()
 const google = useGoogleHealthStore()
 
-type RangePreset = '7d' | '30d' | '90d' | '6m' | '1y' | 'all'
-type ChartViewMode = 'daily' | 'weekly'
+type RangePreset = '30d' | '90d' | '6m' | '1y' | 'all'
 
 const rangePreset = ref<RangePreset>('90d')
 const chartViewMode = ref<ChartViewMode>('weekly')
@@ -26,7 +26,6 @@ watch(logTab, (tab) => {
 })
 
 const rangePresets: { value: RangePreset, label: string }[] = [
-  { value: '7d', label: '7 days' },
   { value: '30d', label: '30 days' },
   { value: '90d', label: '90 days' },
   { value: '6m', label: '6 months' },
@@ -35,12 +34,24 @@ const rangePresets: { value: RangePreset, label: string }[] = [
 ]
 
 const presetDays: Record<RangePreset, number | null> = {
-  '7d': 7,
   '30d': 30,
   '90d': 90,
   '6m': 182,
   '1y': 365,
   all: null
+}
+
+// Short ranges default to a weekly average; long ranges have enough history
+// that weekly gets noisy, so monthly is the more readable default. This is
+// only the *default* applied when the time span changes - the user can still
+// pick a different aggregation afterward, and it sticks until they change
+// the time span again.
+const defaultViewModeForPreset: Record<RangePreset, ChartViewMode> = {
+  '30d': 'weekly',
+  '90d': 'weekly',
+  '6m': 'monthly',
+  '1y': 'monthly',
+  all: 'monthly'
 }
 
 function currentRangeFrom(): string | undefined {
@@ -110,7 +121,10 @@ onMounted(async () => {
   await Promise.all([loadEntries(), settings.fetchSettings(), google.fetchStatus()])
 })
 
-watch(rangePreset, loadEntries)
+watch(rangePreset, (preset) => {
+  chartViewMode.value = defaultViewModeForPreset[preset]
+  loadEntries()
+})
 
 function formatDate(value?: string) {
   if (!value) {

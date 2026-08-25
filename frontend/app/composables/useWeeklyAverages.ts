@@ -1,4 +1,4 @@
-import { startOfWeek } from 'date-fns'
+import { startOfMonth, startOfWeek } from 'date-fns'
 import type { WeightEntry } from '~/stores/weights'
 
 export interface WeeklyAverage {
@@ -9,6 +9,17 @@ export interface WeeklyAverage {
 
 export interface WeeklyTotal {
   weekStart: string
+  total: number
+}
+
+export interface MonthlyAverage {
+  monthStart: string
+  average: number
+  count: number
+}
+
+export interface MonthlyTotal {
+  monthStart: string
   total: number
 }
 
@@ -33,9 +44,65 @@ function toLocalDate(input: string | Date): Date {
 }
 
 /**
- * useWeeklyAverages groups weight entries into Monday-starting weeks and
- * computes per-week averages of a chosen value (weight or BMI), shared by
- * the chart and dashboard summary.
+ * Shared grouping logic behind computeWeeklyAverageBy/computeMonthlyAverageBy
+ * - both bucket entries by a date, then average a chosen value per bucket.
+ * `bucketStart` picks the unit (Monday-starting week vs. calendar month).
+ */
+function bucketAverageBy<T>(
+  items: T[],
+  dateFn: (item: T) => string | Date,
+  valueFn: (item: T) => number | null | undefined,
+  bucketStart: (date: Date) => Date
+): { bucketStart: string, average: number, count: number }[] {
+  const groups = new Map<string, { sum: number, count: number }>()
+  for (const item of items) {
+    const value = valueFn(item)
+    if (value === null || value === undefined) {
+      continue
+    }
+    const key = bucketStart(toLocalDate(dateFn(item))).toISOString()
+    const group = groups.get(key) ?? { sum: 0, count: 0 }
+    group.sum += value
+    group.count += 1
+    groups.set(key, group)
+  }
+  return Array.from(groups.entries())
+    .map(([key, group]) => ({ bucketStart: key, average: group.sum / group.count, count: group.count }))
+    .sort((a, b) => a.bucketStart.localeCompare(b.bucketStart))
+}
+
+/**
+ * Shared grouping logic behind computeWeeklySumBy/computeMonthlySumBy, for
+ * metrics like active energy where the meaningful per-bucket figure is a
+ * total rather than an average.
+ */
+function bucketSumBy<T>(
+  items: T[],
+  dateFn: (item: T) => string | Date,
+  valueFn: (item: T) => number | null | undefined,
+  bucketStart: (date: Date) => Date
+): { bucketStart: string, total: number }[] {
+  const groups = new Map<string, number>()
+  for (const item of items) {
+    const value = valueFn(item)
+    if (value === null || value === undefined) {
+      continue
+    }
+    const key = bucketStart(toLocalDate(dateFn(item))).toISOString()
+    groups.set(key, (groups.get(key) ?? 0) + value)
+  }
+  return Array.from(groups.entries())
+    .map(([key, total]) => ({ bucketStart: key, total }))
+    .sort((a, b) => a.bucketStart.localeCompare(b.bucketStart))
+}
+
+const weekStart = (date: Date) => startOfWeek(date, { weekStartsOn: 1 })
+
+/**
+ * useWeeklyAverages groups weight entries into Monday-starting weeks (or,
+ * for the monthly variants, calendar months) and computes per-bucket
+ * averages of a chosen value (weight or BMI), shared by the chart and
+ * dashboard summary.
  */
 export function useWeeklyAverages() {
   function computeWeeklyAverageBy<T>(
@@ -43,25 +110,8 @@ export function useWeeklyAverages() {
     dateFn: (item: T) => string | Date,
     valueFn: (item: T) => number | null | undefined
   ): WeeklyAverage[] {
-    const groups = new Map<string, { sum: number, count: number }>()
-    for (const item of items) {
-      const value = valueFn(item)
-      if (value === null || value === undefined) {
-        continue
-      }
-      const weekStart = startOfWeek(toLocalDate(dateFn(item)), { weekStartsOn: 1 }).toISOString()
-      const group = groups.get(weekStart) ?? { sum: 0, count: 0 }
-      group.sum += value
-      group.count += 1
-      groups.set(weekStart, group)
-    }
-    return Array.from(groups.entries())
-      .map(([weekStart, group]) => ({
-        weekStart,
-        average: group.sum / group.count,
-        count: group.count
-      }))
-      .sort((a, b) => a.weekStart.localeCompare(b.weekStart))
+    return bucketAverageBy(items, dateFn, valueFn, weekStart)
+      .map(({ bucketStart, average, count }) => ({ weekStart: bucketStart, average, count }))
   }
 
   function computeWeeklyAverages(entries: WeightEntry[]): WeeklyAverage[] {
@@ -69,29 +119,36 @@ export function useWeeklyAverages() {
   }
 
   function currentWeekAverage(entries: WeightEntry[]): WeeklyAverage | null {
-    const currentWeekStart = startOfWeek(new Date(), { weekStartsOn: 1 }).toISOString()
+    const currentWeekStart = weekStart(new Date()).toISOString()
     return computeWeeklyAverages(entries).find(w => w.weekStart === currentWeekStart) ?? null
   }
 
-  /**
-   * computeWeeklySumBy groups arbitrary dated items into Monday-starting
-   * weeks and sums a chosen value, for metrics like active energy where the
-   * meaningful weekly figure is a total rather than an average.
-   */
   function computeWeeklySumBy<T>(items: T[], dateFn: (item: T) => string | Date, valueFn: (item: T) => number | null | undefined): WeeklyTotal[] {
-    const groups = new Map<string, number>()
-    for (const item of items) {
-      const value = valueFn(item)
-      if (value === null || value === undefined) {
-        continue
-      }
-      const weekStart = startOfWeek(toLocalDate(dateFn(item)), { weekStartsOn: 1 }).toISOString()
-      groups.set(weekStart, (groups.get(weekStart) ?? 0) + value)
-    }
-    return Array.from(groups.entries())
-      .map(([weekStart, total]) => ({ weekStart, total }))
-      .sort((a, b) => a.weekStart.localeCompare(b.weekStart))
+    return bucketSumBy(items, dateFn, valueFn, weekStart)
+      .map(({ bucketStart, total }) => ({ weekStart: bucketStart, total }))
   }
 
-  return { computeWeeklyAverageBy, computeWeeklyAverages, currentWeekAverage, computeWeeklySumBy, toLocalDate }
+  function computeMonthlyAverageBy<T>(
+    items: T[],
+    dateFn: (item: T) => string | Date,
+    valueFn: (item: T) => number | null | undefined
+  ): MonthlyAverage[] {
+    return bucketAverageBy(items, dateFn, valueFn, startOfMonth)
+      .map(({ bucketStart, average, count }) => ({ monthStart: bucketStart, average, count }))
+  }
+
+  function computeMonthlySumBy<T>(items: T[], dateFn: (item: T) => string | Date, valueFn: (item: T) => number | null | undefined): MonthlyTotal[] {
+    return bucketSumBy(items, dateFn, valueFn, startOfMonth)
+      .map(({ bucketStart, total }) => ({ monthStart: bucketStart, total }))
+  }
+
+  return {
+    computeWeeklyAverageBy,
+    computeWeeklyAverages,
+    currentWeekAverage,
+    computeWeeklySumBy,
+    computeMonthlyAverageBy,
+    computeMonthlySumBy,
+    toLocalDate
+  }
 }

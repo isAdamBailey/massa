@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import 'chartjs-adapter-date-fns'
-import { format, startOfWeek } from 'date-fns'
+import { format, startOfMonth, startOfWeek } from 'date-fns'
 import {
   BarController,
   BarElement,
@@ -37,24 +37,25 @@ const props = defineProps<{
 }>()
 
 const { kgToLb, category } = useBmi()
-const { computeWeeklyAverageBy, computeWeeklyAverages, computeWeeklySumBy, toLocalDate } = useWeeklyAverages()
+const { computeWeeklyAverageBy, computeWeeklySumBy, computeMonthlyAverageBy, computeMonthlySumBy, toLocalDate } = useWeeklyAverages()
 
-type ViewMode = 'daily' | 'weekly'
+export type ViewMode = 'daily' | 'weekly' | 'monthly'
 type MetricMode = 'weight' | 'bmi' | 'energy' | 'overwhelm'
 
 const viewMode = defineModel<ViewMode>('viewMode', { default: 'weekly' })
 const metricMode = defineModel<MetricMode>('metricMode', { default: 'weight' })
 
 const metricOptions: SegmentedOption<MetricMode>[] = [
-  { value: 'weight', label: 'Weight' },
-  { value: 'bmi', label: 'BMI' },
-  { value: 'energy', label: 'Energy' },
-  { value: 'overwhelm', label: 'Overwhelm' }
+  { value: 'weight', label: 'Weight', accent: 'verdigris' },
+  { value: 'bmi', label: 'BMI', accent: 'verdigris' },
+  { value: 'energy', label: 'Energy', accent: 'copper' },
+  { value: 'overwhelm', label: 'Overwhelm', accent: 'cobalt' }
 ]
 
 const viewOptions: SegmentedOption<ViewMode>[] = [
   { value: 'daily', label: 'Daily' },
-  { value: 'weekly', label: 'Weekly' }
+  { value: 'weekly', label: 'Weekly' },
+  { value: 'monthly', label: 'Monthly' }
 ]
 
 const FOG = 'oklch(0.78 0.015 170)'
@@ -273,82 +274,138 @@ const overwhelmDailyTagNames = computed<Record<number, string>>(() => {
   return map
 })
 
-// The top 3 tags by frequency per week (ties broken alphabetically), keyed
-// by the same epoch-ms x value the weekly overwhelm dataset plots. Reasons
-// don't average, so weekly mode summarizes rather than showing every tag.
-const overwhelmWeeklyTopTags = computed<Record<number, string>>(() => {
-  const countsByWeek = new Map<number, Map<string, number>>()
-  for (const entry of props.overwhelmEntries) {
+// The top 3 tags by frequency per bucket (ties broken alphabetically), keyed
+// by the same epoch-ms x value the weekly/monthly overwhelm dataset plots.
+// Reasons don't average, so aggregated modes summarize rather than showing
+// every tag. Shared by the weekly and monthly computeds below, which only
+// differ in which date-fns function starts the bucket.
+function topTagsByBucket(entries: OverwhelmEntry[], bucketStart: (date: Date) => Date): Record<number, string> {
+  const countsByBucket = new Map<number, Map<string, number>>()
+  for (const entry of entries) {
     if (!entry.tags.length) {
       continue
     }
-    const weekStart = startOfWeek(toLocalDate(entry.day), { weekStartsOn: 1 }).getTime()
-    const counts = countsByWeek.get(weekStart) ?? new Map<string, number>()
+    const bucket = bucketStart(toLocalDate(entry.day)).getTime()
+    const counts = countsByBucket.get(bucket) ?? new Map<string, number>()
     for (const tag of entry.tags) {
       counts.set(tag.name, (counts.get(tag.name) ?? 0) + 1)
     }
-    countsByWeek.set(weekStart, counts)
+    countsByBucket.set(bucket, counts)
   }
 
   const map: Record<number, string> = {}
-  for (const [weekStart, counts] of countsByWeek) {
-    map[weekStart] = Array.from(counts.entries())
+  for (const [bucket, counts] of countsByBucket) {
+    map[bucket] = Array.from(counts.entries())
       .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
       .slice(0, 3)
       .map(([name, count]) => `${name} ×${count}`)
       .join(' · ')
   }
   return map
+}
+
+const overwhelmWeeklyTopTags = computed(() => topTagsByBucket(props.overwhelmEntries, d => startOfWeek(d, { weekStartsOn: 1 })))
+const overwhelmMonthlyTopTags = computed(() => topTagsByBucket(props.overwhelmEntries, startOfMonth))
+
+const viewLabel = computed(() => {
+  if (viewMode.value === 'monthly') {
+    return 'Monthly avg'
+  }
+  return viewMode.value === 'weekly' ? 'Weekly avg' : null
 })
+
+type Point = { x: number, y: number }
+
+// Shared monthly/weekly/daily dispatch behind every average-based series
+// (weight, BMI, overwhelm) - `daily` supplies the metric-specific fallback
+// for the one view mode that isn't a bucketed average.
+function bucketedAverage<T>(
+  entries: T[],
+  dateFn: (item: T) => string | Date,
+  valueFn: (item: T) => number | null | undefined,
+  daily: () => Point[]
+): Point[] {
+  if (viewMode.value === 'monthly') {
+    return computeMonthlyAverageBy(entries, dateFn, valueFn).map(m => ({ x: new Date(m.monthStart).getTime(), y: m.average }))
+  }
+  if (viewMode.value === 'weekly') {
+    return computeWeeklyAverageBy(entries, dateFn, valueFn).map(w => ({ x: new Date(w.weekStart).getTime(), y: w.average }))
+  }
+  return daily()
+}
+
+// Same dispatch for sum-based series (active energy).
+function bucketedSum<T>(
+  entries: T[],
+  dateFn: (item: T) => string | Date,
+  valueFn: (item: T) => number | null | undefined,
+  daily: () => Point[]
+): Point[] {
+  if (viewMode.value === 'monthly') {
+    return computeMonthlySumBy(entries, dateFn, valueFn).map(m => ({ x: new Date(m.monthStart).getTime(), y: m.total }))
+  }
+  if (viewMode.value === 'weekly') {
+    return computeWeeklySumBy(entries, dateFn, valueFn).map(w => ({ x: new Date(w.weekStart).getTime(), y: w.total }))
+  }
+  return daily()
+}
 
 const chartData = computed(() => {
   if (metricMode.value === 'overwhelm') {
-    const data = viewMode.value === 'weekly'
-      ? computeWeeklyAverageBy(props.overwhelmEntries, e => e.day, e => e.overwhelmLevel).map(w => ({ x: toLocalDate(w.weekStart).getTime(), y: w.average }))
-      : props.overwhelmEntries.map(e => ({ x: toLocalDate(e.day).getTime(), y: e.overwhelmLevel }))
-
-    return lineSeries(
-      viewMode.value === 'weekly' ? 'Weekly avg overwhelm' : 'Overwhelm',
-      data
+    const data = bucketedAverage(
+      props.overwhelmEntries,
+      e => e.day,
+      e => e.overwhelmLevel,
+      () => props.overwhelmEntries.map(e => ({ x: toLocalDate(e.day).getTime(), y: e.overwhelmLevel }))
     )
+    return lineSeries(viewLabel.value ? `${viewLabel.value} overwhelm` : 'Overwhelm', data)
   }
 
   if (metricMode.value === 'energy') {
-    const data = viewMode.value === 'weekly'
-      ? computeWeeklySumBy(props.activeEnergyEntries, e => e.day, e => e.activeEnergyKcal).map(w => ({ x: toLocalDate(w.weekStart).getTime(), y: w.total }))
-      : props.activeEnergyEntries.map(e => ({ x: toLocalDate(e.day).getTime(), y: e.activeEnergyKcal }))
-
-    return barSeries(
-      viewMode.value === 'weekly' ? 'Weekly active energy (kcal)' : 'Active energy (kcal)',
-      data
+    const data = bucketedSum(
+      props.activeEnergyEntries,
+      e => e.day,
+      e => e.activeEnergyKcal,
+      () => props.activeEnergyEntries.map(e => ({ x: toLocalDate(e.day).getTime(), y: e.activeEnergyKcal }))
     )
+    return barSeries(viewLabel.value ? `${viewLabel.value} active energy (kcal)` : 'Active energy (kcal)', data)
   }
 
   if (metricMode.value === 'bmi') {
-    const data = viewMode.value === 'weekly'
-      ? computeWeeklyAverageBy(props.entries, e => e.recordedAt, e => e.bmi).map(w => ({ x: new Date(w.weekStart).getTime(), y: w.average }))
-      : props.entries.filter(e => e.bmi != null).map(e => ({ x: new Date(e.recordedAt).getTime(), y: e.bmi as number }))
-
-    return lineSeries(
-      viewMode.value === 'weekly' ? 'Weekly avg BMI' : 'BMI',
-      data
+    const data = bucketedAverage(
+      props.entries,
+      e => e.recordedAt,
+      e => e.bmi,
+      () => props.entries.filter(e => e.bmi != null).map(e => ({ x: new Date(e.recordedAt).getTime(), y: e.bmi as number }))
     )
+    return lineSeries(viewLabel.value ? `${viewLabel.value} BMI` : 'BMI', data)
   }
 
   const toDisplay = (kg: number) => props.unitsPreference === 'imperial' ? kgToLb(kg) : kg
   const unitLabel = props.unitsPreference === 'imperial' ? 'lb' : 'kg'
 
-  const data = viewMode.value === 'weekly'
-    ? computeWeeklyAverages(props.entries).map(w => ({ x: new Date(w.weekStart).getTime(), y: toDisplay(w.average) }))
-    : props.entries.map(e => ({ x: new Date(e.recordedAt).getTime(), y: toDisplay(e.weightKg) }))
+  const data = bucketedAverage(
+    props.entries,
+    e => e.recordedAt,
+    e => e.weightKg,
+    () => props.entries.map(e => ({ x: new Date(e.recordedAt).getTime(), y: e.weightKg }))
+  ).map(point => ({ x: point.x, y: toDisplay(point.y) }))
 
-  return lineSeries(
-    viewMode.value === 'weekly' ? `Weekly avg (${unitLabel})` : `Weight (${unitLabel})`,
-    data
-  )
+  return lineSeries(viewLabel.value ? `${viewLabel.value} (${unitLabel})` : `Weight (${unitLabel})`, data)
 })
 
 const hasData = computed(() => (chartData.value.datasets[0]?.data.length ?? 0) > 0)
+
+const CHART_UNIT: Record<ViewMode, 'day' | 'week' | 'month'> = { daily: 'day', weekly: 'week', monthly: 'month' }
+
+// Every point lands at local midnight, so the adapter's default title
+// ("Jan 5, 2026, 12:00:00 AM") is all-clock, no-signal - each view mode
+// instead gets a title format that matches the span a point represents.
+const TOOLTIP_TITLE: Record<ViewMode, (x: number) => string> = {
+  daily: x => format(x, 'MMM d, yyyy'),
+  weekly: x => `Week of ${format(x, 'MMM d, yyyy')}`,
+  monthly: x => format(x, 'MMMM yyyy')
+}
 
 const chartOptions = computed(() => ({
   responsive: true,
@@ -356,7 +413,7 @@ const chartOptions = computed(() => ({
   scales: {
     x: {
       type: 'time' as const,
-      time: { unit: viewMode.value === 'weekly' ? 'week' as const : 'day' as const },
+      time: { unit: CHART_UNIT[viewMode.value] },
       ticks: { color: FOG },
       grid: { color: HAIRLINE }
     },
@@ -392,23 +449,21 @@ const chartOptions = computed(() => ({
       footerFont: { family: '"IBM Plex Sans", sans-serif', size: 11 },
       titleMarginBottom: 6,
       callbacks: {
-        // Every point lands at local midnight, so the adapter's default
-        // title ("Jan 5, 2026, 12:00:00 AM") is all-clock, no-signal - drop
-        // the time entirely.
         title: (items: { parsed: { x: number | null } }[]) => {
           const x = items[0]?.parsed.x
-          if (x == null) {
-            return ''
-          }
-          return viewMode.value === 'weekly' ? `Week of ${format(x, 'MMM d, yyyy')}` : format(x, 'MMM d, yyyy')
+          return x == null ? '' : TOOLTIP_TITLE[viewMode.value](x)
         },
         footer: (items: { parsed: { x: number | null } }[]) => {
           const x = items[0]?.parsed.x
           if (metricMode.value !== 'overwhelm' || x == null) {
             return undefined
           }
-          const tags = viewMode.value === 'weekly' ? overwhelmWeeklyTopTags.value[x] : overwhelmDailyTagNames.value[x]
-          return tags || undefined
+          const tagsByView: Record<ViewMode, Record<number, string>> = {
+            daily: overwhelmDailyTagNames.value,
+            weekly: overwhelmWeeklyTopTags.value,
+            monthly: overwhelmMonthlyTopTags.value
+          }
+          return tagsByView[viewMode.value][x] || undefined
         }
       }
     }
