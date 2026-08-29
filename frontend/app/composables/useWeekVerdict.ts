@@ -15,15 +15,18 @@ const MS_PER_WEEK = 7 * 24 * 60 * 60 * 1000
 const TREND_WEEKS = 4
 
 /**
- * Deadbands, expressed per week. Weight is absolute (kg/week); a sustained
- * 0.15 kg/week is ~0.6 kg a month, real loss rather than scale noise. With
- * only two weeks there's no slope to speak of - it's a single difference,
- * which day-level noise can carry on its own - so that case keeps the wider
- * band. Energy is relative to its own average, since a meaningful change in
- * output depends on how much a person burns to begin with.
+ * The weight deadband is one-sided, and only guards the *up* side: a rising
+ * slope has to clear it before the sentence says so, because a week of scale
+ * noise shouldn't be reported as a gain. Falling weight gets no such band -
+ * the chart sits directly below this sentence, and a line that slopes down
+ * while the words say "holding steady" reads as the app arguing with its own
+ * graph. Two weeks is a single difference rather than a fit, so noise can
+ * carry it on its own; that case keeps the wider band. Energy stays
+ * two-sided and relative to its own average, since what counts as a real
+ * change in output depends on how much a person burns to begin with.
  */
-const WEIGHT_STEADY_KG_PER_WEEK = 0.15
-const WEIGHT_STEADY_KG_TWO_WEEKS = 0.3
+const WEIGHT_GAIN_KG_PER_WEEK = 0.15
+const WEIGHT_GAIN_KG_TWO_WEEKS = 0.3
 const ENERGY_STEADY_FRACTION = 0.05
 
 /**
@@ -58,6 +61,9 @@ function slopePerWeek(points: WeeklyPoint[]): number {
  * buckets damp that, and taking the slope across the last few of them means a
  * slow, consistent loss registers as progress instead of disappearing into
  * the steady band the way a single week-over-week difference would.
+ *
+ * Where the two directions are treated differently, the tie goes to the
+ * user: any downward weight slope counts, while a rising one has to earn it.
  */
 export function useWeekVerdict() {
   const { computeWeeklyAverages, computeWeeklyAverageBy } = useWeeklyAverages()
@@ -68,11 +74,11 @@ export function useWeekVerdict() {
       return null
     }
     const slope = slopePerWeek(weeks.map(w => ({ weekStart: w.weekStart, value: w.average })))
-    const threshold = weeks.length > 2 ? WEIGHT_STEADY_KG_PER_WEEK : WEIGHT_STEADY_KG_TWO_WEEKS
-    if (Math.abs(slope) < threshold) {
-      return 'steady'
+    if (slope < 0) {
+      return 'down'
     }
-    return slope < 0 ? 'down' : 'up'
+    const gainThreshold = weeks.length > 2 ? WEIGHT_GAIN_KG_PER_WEEK : WEIGHT_GAIN_KG_TWO_WEEKS
+    return slope < gainThreshold ? 'steady' : 'up'
   }
 
   /**

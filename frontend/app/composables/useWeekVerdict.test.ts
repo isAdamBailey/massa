@@ -72,10 +72,35 @@ describe('useWeekVerdict', () => {
     expect(computeWeightTrend(entries)).toBe('down')
   })
 
+  it('computeWeightTrend counts any downward slope, however slight', () => {
+    const { computeWeightTrend } = useWeekVerdict()
+    // A chart that slopes down shouldn't be described as holding steady,
+    // even when the drift is well under what would count as a gain.
+    const entries = [
+      weightEntry(week1[0]!, 80),
+      weightEntry(week2[0]!, 79.98),
+      weightEntry(week3[0]!, 79.96),
+      weightEntry(week4[0]!, 79.94)
+    ]
+    expect(computeWeightTrend(entries)).toBe('down')
+  })
+
+  it('computeWeightTrend still needs a real gain before it says up', () => {
+    const { computeWeightTrend } = useWeekVerdict()
+    const entries = [
+      weightEntry(week1[0]!, 80),
+      weightEntry(week2[0]!, 80.02),
+      weightEntry(week3[0]!, 80.04),
+      weightEntry(week4[0]!, 80.06)
+    ]
+    expect(computeWeightTrend(entries)).toBe('steady')
+  })
+
   it('computeWeightTrend spaces weeks by date, so a skipped week is a real gap', () => {
     const { computeWeightTrend } = useWeekVerdict()
-    // 0.5 kg over the two weeks between them is 0.25 kg/week, not 0.5.
-    const entries = [weightEntry(week1[0]!, 80), weightEntry(week3[0]!, 79.5)]
+    // 0.5 kg over the two weeks between them is 0.25 kg/week, not 0.5 - under
+    // the gain band, where back-to-back weeks would have cleared it.
+    const entries = [weightEntry(week1[0]!, 80), weightEntry(week3[0]!, 80.5)]
     expect(computeWeightTrend(entries)).toBe('steady')
   })
 
