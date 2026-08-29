@@ -17,9 +17,11 @@ function energyEntry(day: string, activeEnergyKcal: number): ActiveEnergyEntry {
   return { day, activeEnergyKcal }
 }
 
-// 2024-01-01 is a Monday; entries on/after 2024-01-08 fall in the next week.
+// 2024-01-01 is a Monday; each following Monday starts the next week.
 const week1 = ['2024-01-01T08:00:00Z', '2024-01-02T08:00:00Z']
 const week2 = ['2024-01-08T08:00:00Z', '2024-01-09T08:00:00Z']
+const week3 = ['2024-01-15T08:00:00Z']
+const week4 = ['2024-01-22T08:00:00Z']
 
 describe('useWeekVerdict', () => {
   it('computeWeightTrend returns null with fewer than two weeks of data', () => {
@@ -45,6 +47,75 @@ describe('useWeekVerdict', () => {
     expect(computeWeightTrend(entries)).toBe('steady')
   })
 
+  it('computeWeightTrend reads a slow, consistent loss across weeks as down', () => {
+    const { computeWeightTrend } = useWeekVerdict()
+    // 0.2 kg/week - too small for any single week-over-week comparison to
+    // call, but four weeks of it is real loss.
+    const entries = [
+      weightEntry(week1[0]!, 80),
+      weightEntry(week2[0]!, 79.8),
+      weightEntry(week3[0]!, 79.6),
+      weightEntry(week4[0]!, 79.4)
+    ]
+    expect(computeWeightTrend(entries)).toBe('down')
+  })
+
+  it('computeWeightTrend holds its read when one week bounces against a falling trend', () => {
+    const { computeWeightTrend } = useWeekVerdict()
+    // The last two weeks alone would say "up"; the four-week slope doesn't.
+    const entries = [
+      weightEntry(week1[0]!, 82),
+      weightEntry(week2[0]!, 81),
+      weightEntry(week3[0]!, 80),
+      weightEntry(week4[0]!, 80.4)
+    ]
+    expect(computeWeightTrend(entries)).toBe('down')
+  })
+
+  it('computeWeightTrend counts any downward slope, however slight', () => {
+    const { computeWeightTrend } = useWeekVerdict()
+    // A chart that slopes down shouldn't be described as holding steady,
+    // even when the drift is well under what would count as a gain.
+    const entries = [
+      weightEntry(week1[0]!, 80),
+      weightEntry(week2[0]!, 79.98),
+      weightEntry(week3[0]!, 79.96),
+      weightEntry(week4[0]!, 79.94)
+    ]
+    expect(computeWeightTrend(entries)).toBe('down')
+  })
+
+  it('computeWeightTrend still needs a real gain before it says up', () => {
+    const { computeWeightTrend } = useWeekVerdict()
+    const entries = [
+      weightEntry(week1[0]!, 80),
+      weightEntry(week2[0]!, 80.02),
+      weightEntry(week3[0]!, 80.04),
+      weightEntry(week4[0]!, 80.06)
+    ]
+    expect(computeWeightTrend(entries)).toBe('steady')
+  })
+
+  it('computeWeightTrend spaces weeks by date, so a skipped week is a real gap', () => {
+    const { computeWeightTrend } = useWeekVerdict()
+    // 0.5 kg over the two weeks between them is 0.25 kg/week, not 0.5 - under
+    // the gain band, where back-to-back weeks would have cleared it.
+    const entries = [weightEntry(week1[0]!, 80), weightEntry(week3[0]!, 80.5)]
+    expect(computeWeightTrend(entries)).toBe('steady')
+  })
+
+  it('computeWeightTrend averages within a week rather than comparing readings', () => {
+    const { computeWeightTrend } = useWeekVerdict()
+    // A heavy last weigh-in doesn't outvote the week it sits in.
+    const entries = [
+      weightEntry(week1[0]!, 82),
+      weightEntry(week1[1]!, 82),
+      weightEntry(week2[0]!, 80),
+      weightEntry(week2[1]!, 81.4)
+    ]
+    expect(computeWeightTrend(entries)).toBe('down')
+  })
+
   it('computeEnergyTrend detects a meaningful increase', () => {
     const { computeEnergyTrend } = useWeekVerdict()
     const entries = [energyEntry(week1[0]!, 200), energyEntry(week2[0]!, 400)]
@@ -54,6 +125,23 @@ describe('useWeekVerdict', () => {
   it('computeEnergyTrend treats a small change as steady', () => {
     const { computeEnergyTrend } = useWeekVerdict()
     const entries = [energyEntry(week1[0]!, 200), energyEntry(week2[0]!, 205)]
+    expect(computeEnergyTrend(entries)).toBe('steady')
+  })
+
+  it('computeEnergyTrend is not dragged down by a partial current week', () => {
+    const { computeEnergyTrend } = useWeekVerdict()
+    // Two days into a week burning the same per day as the full week before it.
+    const entries = [
+      energyEntry('2024-01-01', 300),
+      energyEntry('2024-01-02', 300),
+      energyEntry('2024-01-03', 300),
+      energyEntry('2024-01-04', 300),
+      energyEntry('2024-01-05', 300),
+      energyEntry('2024-01-06', 300),
+      energyEntry('2024-01-07', 300),
+      energyEntry('2024-01-08', 300),
+      energyEntry('2024-01-09', 300)
+    ]
     expect(computeEnergyTrend(entries)).toBe('steady')
   })
 
