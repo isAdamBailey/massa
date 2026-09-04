@@ -199,10 +199,9 @@ primary key.
   and, when that average is **over** `OVERWHELM_ELEVATED_THRESHOLD` (4),
   returns the top 2 tags by frequency for the dashboard sentence.
 - `app/components/LogCard.vue` — tabbed daily-entry card (Weight /
-  Overwhelm); defaults to whichever metric isn't logged yet today, since
-  the two are typically logged at different times of day. The overwhelm
-  tab's tag chips are optional — a bare 1-10 tap-and-save with no tags is
-  the fast path.
+  Overwhelm); always opens on Weight and never re-picks the tab on its own —
+  Overwhelm is a deliberate tap. The overwhelm tab's tag chips are optional —
+  a bare 1-10 tap-and-save with no tags is the fast path.
 - `app/pages/index.vue` — dashboard: latest weight + this-week verdict;
   overwhelm block only when current-week avg is **over 4** (cobalt avg +
   top 2 tags). Log card, Trend chart, Google sync status banner. Trend

@@ -16,7 +16,6 @@ const settings = useSettingsStore()
 const google = useGoogleHealthStore()
 const pendingWeight = useGooglePendingWeight()
 const { lbToKg } = useBmi()
-const { toLocalDate } = useWeeklyAverages()
 
 onMounted(() => {
   overwhelmTags.fetchTags()
@@ -26,54 +25,17 @@ const emit = defineEmits<{ saved: [] }>()
 
 type LogTab = 'weight' | 'overwhelm'
 
-interface LogMetric {
-  id: LogTab
-  label: string
-  loggedToday: () => boolean
-}
-
-// Ordered list of loggable metrics. Prefer the first still-outstanding metric
-// when seeding the active tab; weight stays first so it wins ties.
-const logMetrics: LogMetric[] = [
-  {
-    id: 'weight',
-    label: 'Weight',
-    loggedToday: () => weights.entries.some(e => toLocalDate(e.recordedAt).toDateString() === new Date().toDateString())
-  },
-  {
-    id: 'overwhelm',
-    label: 'Overwhelm',
-    loggedToday: () => overwhelm.entries.some(e => e.day === toDateLocalInput())
-  }
+// Weight is always the landing tab: it's the metric logged most often, and a
+// tab that moves on its own costs more than it saves. Overwhelm is one tap away.
+const tabOptions: SegmentedOption<LogTab>[] = [
+  { value: 'weight', label: 'Weight' },
+  { value: 'overwhelm', label: 'Overwhelm' }
 ]
 
-const tabOptions: SegmentedOption<LogTab>[] = logMetrics.map(m => ({ value: m.id, label: m.label }))
-
 const activeTab = defineModel<LogTab>({ default: 'weight' })
-const tabSeeded = ref(false)
-const fetchSeen = ref(false)
 
 const logAccent = computed(() => accentForLogTab(activeTab.value))
 const logWash = computed(() => METRIC_ACCENT_OKLCH[logAccent.value].wash)
-
-// The form mounts before the page's onMounted fetch resolves, so both stores
-// start empty. Wait until a fetch has started and finished before seeding —
-// immediate:true on loading alone would latch on the idle-before-fetch state.
-watch(
-  () => weights.loading || overwhelm.loading,
-  (busy) => {
-    if (busy) {
-      fetchSeen.value = true
-      return
-    }
-    if (!fetchSeen.value || tabSeeded.value) {
-      return
-    }
-    tabSeeded.value = true
-    const outstanding = logMetrics.find(m => !m.loggedToday())
-    activeTab.value = outstanding?.id ?? 'weight'
-  }
-)
 
 // --- Weight tab ---
 
