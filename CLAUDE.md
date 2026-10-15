@@ -198,6 +198,17 @@ primary key.
   `useOverwhelmSummary()`, which averages the current Monday-starting week
   and, when that average is **over** `OVERWHELM_ELEVATED_THRESHOLD` (4),
   returns the top 2 tags by frequency for the dashboard sentence.
+- `app/composables/useRangeChange.ts` — `buildRangeChange(metric, sources,
+  spanDays, units, now)` → `{ headline, detail }` for the Trend card's
+  change-over-span sentence (headline is `useStatusSentence`-style
+  segments). Takes full, unfiltered store entries and resolves the window
+  itself (`spanDays: null` = All). Weight/BMI compare 7-day averages at
+  each end (raw first/last for the 7d span or data covering < 14 days),
+  with a steady band (0.5 lb / 0.2 kg / 0.1 BMI). Energy compares its
+  kcal/day average with the previous span of the same length, falling back
+  to start-vs-end; overwhelm reports its average against the baseline. A
+  window whose first reading is > 7 days past its start reads "since
+  <date>". Independent of the chart's daily/weekly/monthly aggregation.
 - `app/components/LogCard.vue` — tabbed daily-entry card (Weight /
   Overwhelm); always opens on Weight and never re-picks the tab on its own —
   Overwhelm is a deliberate tap. The overwhelm tab's tag chips are optional —
