@@ -1,7 +1,11 @@
 <script setup lang="ts">
+import { format } from 'date-fns'
 import type { WeightEntry } from '~/stores/weights'
 import type { ChartMetricMode, LogTab } from '~/composables/useMetricAccent'
 import type { ViewMode as ChartViewMode } from '~/components/MetricChart.vue'
+import type { TimeSpanStop } from '~/components/TimeSpanSlider.vue'
+import { accentForChartMetric } from '~/composables/useMetricAccent'
+import { spanStart } from '~/composables/useRangeChange'
 
 const auth = useAuthStore()
 const weights = useWeightsStore()
@@ -10,7 +14,7 @@ const overwhelm = useOverwhelmStore()
 const settings = useSettingsStore()
 const google = useGoogleHealthStore()
 
-type RangePreset = '30d' | '90d' | '6m' | '1y' | 'all'
+type RangePreset = '7d' | '30d' | '90d' | '6m' | '1y' | 'all'
 
 const rangePreset = ref<RangePreset>('90d')
 const chartViewMode = ref<ChartViewMode>('weekly')
@@ -25,15 +29,17 @@ watch(logTab, (tab) => {
   recentTab.value = tab
 })
 
-const rangePresets: { value: RangePreset, label: string }[] = [
-  { value: '30d', label: '30 days' },
-  { value: '90d', label: '90 days' },
-  { value: '6m', label: '6 months' },
-  { value: '1y', label: '1 year' },
-  { value: 'all', label: 'All time' }
+const rangePresets: TimeSpanStop<RangePreset>[] = [
+  { value: '7d', tick: '7d', label: '7 days' },
+  { value: '30d', tick: '30d', label: '30 days' },
+  { value: '90d', tick: '90d', label: '90 days' },
+  { value: '6m', tick: '6m', label: '6 months' },
+  { value: '1y', tick: '1y', label: '1 year' },
+  { value: 'all', tick: 'All', label: 'All time' }
 ]
 
 const presetDays: Record<RangePreset, number | null> = {
+  '7d': 7,
   '30d': 30,
   '90d': 90,
   '6m': 182,
@@ -47,6 +53,7 @@ const presetDays: Record<RangePreset, number | null> = {
 // pick a different aggregation afterward, and it sticks until they change
 // the time span again.
 const defaultViewModeForPreset: Record<RangePreset, ChartViewMode> = {
+  '7d': 'daily',
   '30d': 'weekly',
   '90d': 'weekly',
   '6m': 'monthly',
@@ -54,23 +61,23 @@ const defaultViewModeForPreset: Record<RangePreset, ChartViewMode> = {
   all: 'monthly'
 }
 
-function currentRangeFrom(): string | undefined {
-  const days = presetDays[rangePreset.value]
-  if (days === null) {
-    return undefined
-  }
-  const from = new Date()
-  from.setDate(from.getDate() - days)
-  return from.toISOString()
+/**
+ * All history is fetched once (on mount and after saves) and the time span
+ * is applied on the client by MetricChart, so changing span - including
+ * dragging the slider - never waits on the network. The list endpoints
+ * aren't paginated, and a personal tracker's history is small.
+ */
+async function loadEntries() {
+  await Promise.all([
+    weights.fetchEntries(),
+    activeEnergy.fetchEntries(),
+    overwhelm.fetchEntries()
+  ])
 }
 
-async function loadEntries() {
-  const from = currentRangeFrom()
-  await Promise.all([
-    weights.fetchEntries(from ? { from } : {}),
-    activeEnergy.fetchEntries(from ? { from } : {}),
-    overwhelm.fetchEntries(from ? { from } : {})
-  ])
+/** Applied when the user settles on a span (slider release, key press, tapped label). */
+function applyDefaultViewMode(preset: RangePreset) {
+  chartViewMode.value = defaultViewModeForPreset[preset]
 }
 
 const { computeWeightTrend, computeEnergyTrend, computeVerdict } = useWeekVerdict()
@@ -106,7 +113,20 @@ const displayEntries = computed(() => {
 
 const latestEntry = computed(() => displayEntries.value.at(-1) ?? null)
 
-const weekVerdict = computed(() => computeVerdict(computeWeightTrend(displayEntries.value), computeEnergyTrend(activeEnergy.entries)))
+/**
+ * The verdict reads the last few weekly buckets that have data. It used to
+ * see whatever span the chart had fetched (90 days by default); with all
+ * history loaded it keeps that 90-day horizon explicitly, so a long gap
+ * doesn't let months-old weeks speak for "this week".
+ */
+const VERDICT_HORIZON_DAYS = 90
+const weekVerdict = computed(() => {
+  const start = spanStart(VERDICT_HORIZON_DAYS)!
+  return computeVerdict(
+    computeWeightTrend(displayEntries.value.filter(e => new Date(e.recordedAt) >= start)),
+    computeEnergyTrend(activeEnergy.entries.filter(e => e.day >= format(start, 'yyyy-MM-dd')))
+  )
+})
 
 /** Only carries a clause in the status sentence when this week's avg overwhelm is over 4. */
 const currentWeekOverwhelm = computed(() => computeCurrentWeekSummary(overwhelm.entries))
@@ -121,10 +141,6 @@ onMounted(async () => {
   await Promise.all([loadEntries(), settings.fetchSettings(), google.fetchStatus()])
 })
 
-watch(rangePreset, (preset) => {
-  chartViewMode.value = defaultViewModeForPreset[preset]
-  loadEntries()
-})
 
 function formatDate(value?: string) {
   if (!value) {
@@ -216,12 +232,11 @@ function formatDate(value?: string) {
             :span-days="presetDays[rangePreset]"
           >
             <template #range>
-              <SegmentedControl
+              <TimeSpanSlider
                 v-model="rangePreset"
-                :options="rangePresets"
-                group-label="Time span"
-                emphasis="quiet"
-                scrollable
+                :stops="rangePresets"
+                :accent="accentForChartMetric(chartMetricMode)"
+                @commit="applyDefaultViewMode"
               />
             </template>
           </MetricChart>

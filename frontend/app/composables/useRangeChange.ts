@@ -157,8 +157,17 @@ function hasEnoughReadings(readings: Reading[]): boolean {
   return readings.length >= 2 && new Set(readings.map(r => localDayKey(r.at))).size >= 2
 }
 
+/**
+ * spanStart is local midnight on the first calendar day of a `spanDays`
+ * span ending today (today counts as one day), or null for All. Shared with
+ * the chart, so the line and the summary always cover the same days.
+ */
+export function spanStart(spanDays: number | null, now: Date = new Date()): Date | null {
+  return spanDays === null ? null : startOfDay(subDays(now, spanDays - 1))
+}
+
 function resolveWindow(spanDays: number | null, now: Date): Window {
-  return { start: spanDays === null ? null : startOfDay(subDays(now, spanDays - 1)), spanDays }
+  return { start: spanStart(spanDays, now), spanDays }
 }
 
 function inWindow(readings: Reading[], window: Window, now: Date): Reading[] {
