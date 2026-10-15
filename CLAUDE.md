@@ -188,12 +188,25 @@ primary key.
   keeps long quiet option sets (time spans) in a horizontal touch scroller
   so every option stays a ≥44px tap target. All options use `min-h-11`.
 - `app/components/MetricChart.vue` — Chart.js chart (via vue-chartjs +
-  chartjs-adapter-date-fns). Control hierarchy: primary metric switcher
-  (weight/BMI/energy/overwhelm, accent-aware) on its own row; quiet
-  daily/weekly aggregation beside a `#range` slot for the parent’s time-span
-  control. Unit-aware. In overwhelm mode the tooltip footer shows that day's
-  tags (daily) or the week's top 3 tags by frequency (weekly), computed
+  chartjs-adapter-date-fns). Takes **full, unfiltered** history plus
+  `spanDays` and filters to the span itself (via `spanStart`), so span
+  changes never refetch. Control hierarchy: primary metric switcher
+  (weight/BMI/energy/overwhelm, accent-aware) on its own row; the parent's
+  time-span control in a full-width `#range` slot; quiet
+  daily/weekly/monthly aggregation right-aligned beneath it. Below the
+  controls, an `aria-live` change summary from `useRangeChange` (headline
+  in the metric accent, Fog detail line); hidden when the metric has no
+  data in the span, since the chart's own empty state covers that.
+  Unit-aware. In overwhelm mode the tooltip footer shows that day's tags
+  (daily) or the week's top 3 tags by frequency (weekly), computed
   client-side from already-fetched entries.
+- `app/components/TimeSpanSlider.vue` — stepped time-span slider: a native
+  `<input type="range">` (keyboard + `aria-valuetext` for free) over a
+  Graphite rail with a metric-accent fill and stop dots, plus tappable tick
+  labels (`tabindex="-1"`, so the slider stays one tab stop). `v-model`
+  updates live on `input` while dragging; `commit` fires on `change`
+  (release, key press, tapped label) — the dashboard uses it to apply the
+  span's default aggregation.
 - `app/composables/useOverwhelm.ts` — `OVERWHELM_BASELINE` (3) and
   `useOverwhelmSummary()`, which averages the current Monday-starting week
   and, when that average is **over** `OVERWHELM_ELEVATED_THRESHOLD` (4),
@@ -202,23 +215,32 @@ primary key.
   spanDays, units, now)` → `{ headline, detail }` for the Trend card's
   change-over-span sentence (headline is `useStatusSentence`-style
   segments). Takes full, unfiltered store entries and resolves the window
-  itself (`spanDays: null` = All). Weight/BMI compare 7-day averages at
+  itself (`spanDays: null` = All; otherwise today plus the `spanDays - 1`
+  calendar days before it). Weight/BMI compare 7-day averages at
   each end (raw first/last for the 7d span or data covering < 14 days),
   with a steady band (0.5 lb / 0.2 kg / 0.1 BMI). Energy compares its
   kcal/day average with the previous span of the same length, falling back
-  to start-vs-end; overwhelm reports its average against the baseline. A
-  window whose first reading is > 7 days past its start reads "since
-  <date>". Independent of the chart's daily/weekly/monthly aggregation.
+  to start-vs-end when that span has under 2 days of readings. Overwhelm
+  names a band rather than a number (below / around / a bit above / above
+  the baseline of 3, where "a bit above" ends at the elevated threshold of
+  4) and says whether the span ended calmer or more overwhelmed than it
+  began. Unlogged days count as baseline, so "below"/"above" take enough
+  explicit entries to move the whole span's average (a "since <date>" span
+  starts at the first entry). A window whose first reading is > 7 days past its start reads
+  "since <date>". Independent of the chart's daily/weekly/monthly aggregation.
 - `app/components/LogCard.vue` — tabbed daily-entry card (Weight /
   Overwhelm); always opens on Weight and never re-picks the tab on its own —
   Overwhelm is a deliberate tap. The overwhelm tab's tag chips are optional —
   a bare 1-10 tap-and-save with no tags is the fast path.
 - `app/pages/index.vue` — dashboard: latest weight + this-week verdict;
   overwhelm block only when current-week avg is **over 4** (cobalt avg +
-  top 2 tags). Log card, Trend chart, Google sync status banner. Trend
-  time spans are 7d / 30d / 90d / **6m (182 days)** / 1y / all, passed
-  into MetricChart via the `#range` slot as a quiet scrollable
-  `SegmentedControl`.
+  top 2 tags). Log card, Trend chart, Google sync status banner. Fetches
+  **all** history once (on mount and after saves; no `from=`). Trend time
+  spans are 7d / 30d / 90d / **6m (182 days)** / 1y / all, passed into
+  MetricChart's `#range` slot as a `TimeSpanSlider`; settling on a span
+  applies its default aggregation (7d daily, 30d/90d weekly, longer
+  monthly). The week verdict keeps an explicit 90-day horizon so it
+  doesn't depend on the span or read months-old weeks.
 - `app/pages/settings/index.vue` — Google Health connect/disconnect/sync,
   units preference, manual height override, and the overwhelm tag
   vocabulary editor (create/rename/archive).

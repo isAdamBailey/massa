@@ -1,11 +1,11 @@
-import { format, subDays } from 'date-fns'
+import { addDays, format, startOfDay, subDays } from 'date-fns'
 import type { ActiveEnergyEntry } from '~/stores/activeEnergy'
 import type { OverwhelmEntry } from '~/stores/overwhelm'
 import type { UnitsPreference } from '~/stores/settings'
 import type { WeightEntry } from '~/stores/weights'
 import type { ChartMetricMode } from '~/composables/useMetricAccent'
 import type { StatusSentenceSegment } from '~/composables/useStatusSentence'
-import { OVERWHELM_BASELINE } from '~/composables/useOverwhelm'
+import { OVERWHELM_BASELINE, OVERWHELM_ELEVATED_THRESHOLD } from '~/composables/useOverwhelm'
 
 export interface RangeChangeSummary {
   /** The Trend card's hero sentence; only the number phrase is `highlight`. */
@@ -26,7 +26,11 @@ interface Reading {
 }
 
 interface Window {
-  /** null for All: the window starts at the first reading. */
+  /**
+   * Local midnight starting the span's first calendar day (today counts as
+   * one), so day-keyed entries land wholly inside or outside it. null for
+   * All: the window starts at the first reading.
+   */
   start: Date | null
   spanDays: number | null
 }
@@ -53,6 +57,15 @@ const SINCE_GRACE_DAYS = 7
 const STEADY_WEIGHT_LB = 0.5
 const STEADY_WEIGHT_KG = 0.2
 const STEADY_BMI = 0.1
+
+/**
+ * Overwhelm is a felt 1-10 scale, so the summary names a band rather than
+ * a decimal: within this distance of the baseline reads as "around" it.
+ */
+const OVERWHELM_AROUND_BASELINE = 0.5
+
+/** Start-to-end overwhelm changes smaller than this read as "about the same". */
+const OVERWHELM_STEADY = 0.5
 
 const NOT_ENOUGH: RangeChangeSummary = {
   headline: [{ text: 'Not enough readings in this span yet.' }],
@@ -144,8 +157,17 @@ function hasEnoughReadings(readings: Reading[]): boolean {
   return readings.length >= 2 && new Set(readings.map(r => localDayKey(r.at))).size >= 2
 }
 
+/**
+ * spanStart is local midnight on the first calendar day of a `spanDays`
+ * span ending today (today counts as one day), or null for All. Shared with
+ * the chart, so the line and the summary always cover the same days.
+ */
+export function spanStart(spanDays: number | null, now: Date = new Date()): Date | null {
+  return spanDays === null ? null : startOfDay(subDays(now, spanDays - 1))
+}
+
 function resolveWindow(spanDays: number | null, now: Date): Window {
-  return { start: spanDays === null ? null : subDays(now, spanDays), spanDays }
+  return { start: spanStart(spanDays, now), spanDays }
 }
 
 function inWindow(readings: Reading[], window: Window, now: Date): Reading[] {
@@ -261,8 +283,8 @@ export function useRangeChange() {
 
   /**
    * Energy reads as a daily average, compared with the span of the same
-   * length right before it. For All, or when that earlier span has no data,
-   * it falls back to the smoothed start-vs-end comparison.
+   * length right before it. For All, or when that earlier span doesn't have
+   * enough readings of its own, it falls back to the smoothed start-vs-end comparison.
    */
   function summarizeEnergy(entries: ActiveEnergyEntry[], spanDays: number | null, now: Date): RangeChangeSummary {
     const window = resolveWindow(spanDays, now)
@@ -281,7 +303,9 @@ export function useRangeChange() {
     const totalText = `${integer.format(total)} kcal total`
 
     const previous = previousSpan(all, window)
-    if (previous.length > 0 && window.spanDays !== null) {
+    // A lone reading isn't a span to compare against - e.g. the boundary day
+    // a `from=`-filtered fetch returns just before the window.
+    if (hasEnoughReadings(previous) && window.spanDays !== null) {
       const previousAverage = mean(previous)
       const comparison = relativeTo(averageText, integer.format(previousAverage), previousAverage, average)
       return {
@@ -299,28 +323,65 @@ export function useRangeChange() {
   }
 
   /**
-   * Overwhelm reads as an average over the span against the 1-10 baseline,
-   * with the detail line noting where the span started.
+   * Overwhelm is a felt 1-10 scale where a decimal like "3.8" means little,
+   * so it reads as a band relative to the baseline - below, around, a bit
+   * above (up to the dashboard's elevated threshold), or above - with the
+   * detail line saying how the span ended compared with how it started.
+   *
+   * Hearing nothing is read as a baseline day, not as a calm one: every
+   * unlogged day in the span counts as OVERWHELM_BASELINE. So "below" (or
+   * "above") takes enough explicit entries to move the whole span's
+   * average, and a span with no entries reads as around the baseline.
    */
   function summarizeOverwhelm(entries: OverwhelmEntry[], spanDays: number | null, now: Date): RangeChangeSummary {
     const window = resolveWindow(spanDays, now)
-    const readings = sorted(inWindow(entries.map(e => ({ at: toLocalDate(e.day), value: e.overwhelmLevel })), window, now))
-    if (!hasEnoughReadings(readings)) {
+    const logged = sorted(inWindow(entries.map(e => ({ at: toLocalDate(e.day), value: e.overwhelmLevel })), window, now))
+    const first = logged[0]
+    if (!first && window.start === null) {
       return NOT_ENOUGH
     }
-    const average = round1(mean(readings))
-    const offset = round1(average - OVERWHELM_BASELINE)
-    const baseline = offset === 0
-      ? `At your baseline of ${OVERWHELM_BASELINE}`
-      : `${fixed1(Math.abs(offset))} ${offset > 0 ? 'above' : 'below'} your baseline of ${OVERWHELM_BASELINE}`
+
+    // The span runs from the window start, or from the first entry when the
+    // headline says "since <date>" - days before someone started logging
+    // aren't days they were at baseline.
+    const phrase = first ? windowPhrase(window, first, now) : `over the last ${spanName(window.spanDays!)}`
+    const from = phrase.startsWith('since') ? startOfDay(first!.at) : window.start!
+    const byDay = new Map(logged.map(r => [localDayKey(r.at), r.value]))
+    const readings: Reading[] = []
+    for (let day = from; day <= now; day = addDays(day, 1)) {
+      readings.push({ at: day, value: byDay.get(localDayKey(day)) ?? OVERWHELM_BASELINE })
+    }
+    if (readings.length < 2) {
+      return NOT_ENOUGH
+    }
+
+    const average = mean(readings)
+    let band: string
+    if (average < OVERWHELM_BASELINE - OVERWHELM_AROUND_BASELINE) {
+      band = 'Below your baseline'
+    } else if (average <= OVERWHELM_BASELINE + OVERWHELM_AROUND_BASELINE) {
+      band = 'Around your baseline'
+    } else if (average <= OVERWHELM_ELEVATED_THRESHOLD) {
+      band = 'A bit above your baseline'
+    } else {
+      band = 'Above your baseline'
+    }
     const { start, end } = endpoints(readings, window.spanDays)
-    const comparison = relativeTo(fixed1(end), fixed1(start), round1(start), round1(end))
+    const change = end - start
+    let detail: string
+    if (!first) {
+      detail = 'Nothing logged in this span'
+    } else if (Math.abs(change) < OVERWHELM_STEADY) {
+      detail = 'About the same as at the start'
+    } else {
+      detail = change < 0 ? 'Calmer than at the start' : 'More overwhelmed than at the start'
+    }
     return {
       headline: [
-        { text: `Averaging ${fixed1(average)}`, highlight: true },
-        { text: ` ${windowPhrase(window, readings[0]!, now)}` }
+        { text: band, highlight: true },
+        { text: ` ${phrase}` }
       ],
-      detail: `${baseline} · ${comparison} at the start`
+      detail
     }
   }
 

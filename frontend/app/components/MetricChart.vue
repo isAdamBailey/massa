@@ -16,8 +16,10 @@ import {
 import type { Plugin } from 'chart.js'
 import { Bar, Line } from 'vue-chartjs'
 import { BMI_BOUNDARIES } from '~/composables/useBmi'
+import { spanStart } from '~/composables/useRangeChange'
 import {
   accentForChartMetric,
+  accentTextClasses,
   METRIC_ACCENT_OKLCH
 } from '~/composables/useMetricAccent'
 import { OVERWHELM_BASELINE } from '~/composables/useOverwhelm'
@@ -30,10 +32,13 @@ import type { WeightEntry } from '~/stores/weights'
 ChartJS.register(LineController, LineElement, PointElement, BarController, BarElement, LinearScale, TimeScale, Tooltip, Filler)
 
 const props = defineProps<{
+  /** Full, unfiltered history - the chart filters to `spanDays` itself. */
   entries: WeightEntry[]
   activeEnergyEntries: ActiveEnergyEntry[]
   overwhelmEntries: OverwhelmEntry[]
   unitsPreference: UnitsPreference
+  /** The parent's time span in days, or null for All. */
+  spanDays: number | null
 }>()
 
 const { kgToLb, category } = useBmi()
@@ -69,6 +74,33 @@ const EMBER_WASH = 'oklch(0.62 0.17 25 / 0.12)'
 
 const chartAccent = computed(() => accentForChartMetric(metricMode.value))
 const chartPalette = computed(() => METRIC_ACCENT_OKLCH[chartAccent.value])
+
+const { buildRangeChange } = useRangeChange()
+
+// The span is applied here, on already-fetched history, so dragging the
+// time-span slider never waits on the network.
+const rangeStart = computed(() => spanStart(props.spanDays))
+const entries = computed(() => {
+  const start = rangeStart.value
+  return start ? props.entries.filter(e => new Date(e.recordedAt) >= start) : props.entries
+})
+const activeEnergyEntries = computed(() => {
+  const start = rangeStart.value
+  return start ? props.activeEnergyEntries.filter(e => toLocalDate(e.day) >= start) : props.activeEnergyEntries
+})
+const overwhelmEntries = computed(() => {
+  const start = rangeStart.value
+  return start ? props.overwhelmEntries.filter(e => toLocalDate(e.day) >= start) : props.overwhelmEntries
+})
+
+// How much the metric moved over the time span. Deliberately not tied to
+// viewMode: switching daily/weekly/monthly never changes the headline.
+const rangeChange = computed(() => buildRangeChange(
+  metricMode.value,
+  { weights: props.entries, energy: props.activeEnergyEntries, overwhelm: props.overwhelmEntries },
+  props.spanDays,
+  props.unitsPreference
+))
 
 // Dot size scales down as points get denser, so a 7-day view (few, spaced-out
 // points) gets a comfortably tappable dot while a multi-year view (dozens of
@@ -139,8 +171,8 @@ const BMI_ZONES: { from: number, to: number, color: string, wash: string, label:
 // used to mark "today" on the chart even when the line itself shows a
 // weekly average that can land in a different BMI category.
 const latestBmiEntry = computed(() => {
-  for (let i = props.entries.length - 1; i >= 0; i--) {
-    const entry = props.entries[i]
+  for (let i = entries.value.length - 1; i >= 0; i--) {
+    const entry = entries.value[i]
     if (entry?.bmi != null) {
       return entry
     }
@@ -264,7 +296,7 @@ const overwhelmBaselinePlugin: Plugin<'line'> = {
 // dataset plots, so the tooltip can look a point's tags up by its x.
 const overwhelmDailyTagNames = computed<Record<number, string>>(() => {
   const map: Record<number, string> = {}
-  for (const entry of props.overwhelmEntries) {
+  for (const entry of overwhelmEntries.value) {
     if (!entry.tags.length) {
       continue
     }
@@ -304,8 +336,8 @@ function topTagsByBucket(entries: OverwhelmEntry[], bucketStart: (date: Date) =>
   return map
 }
 
-const overwhelmWeeklyTopTags = computed(() => topTagsByBucket(props.overwhelmEntries, d => startOfWeek(d, { weekStartsOn: 1 })))
-const overwhelmMonthlyTopTags = computed(() => topTagsByBucket(props.overwhelmEntries, startOfMonth))
+const overwhelmWeeklyTopTags = computed(() => topTagsByBucket(overwhelmEntries.value, d => startOfWeek(d, { weekStartsOn: 1 })))
+const overwhelmMonthlyTopTags = computed(() => topTagsByBucket(overwhelmEntries.value, startOfMonth))
 
 const viewLabel = computed(() => {
   if (viewMode.value === 'monthly') {
@@ -353,30 +385,30 @@ function bucketedSum<T>(
 const chartData = computed(() => {
   if (metricMode.value === 'overwhelm') {
     const data = bucketedAverage(
-      props.overwhelmEntries,
+      overwhelmEntries.value,
       e => e.day,
       e => e.overwhelmLevel,
-      () => props.overwhelmEntries.map(e => ({ x: toLocalDate(e.day).getTime(), y: e.overwhelmLevel }))
+      () => overwhelmEntries.value.map(e => ({ x: toLocalDate(e.day).getTime(), y: e.overwhelmLevel }))
     )
     return lineSeries(viewLabel.value ? `${viewLabel.value} overwhelm` : 'Overwhelm', data)
   }
 
   if (metricMode.value === 'energy') {
     const data = bucketedSum(
-      props.activeEnergyEntries,
+      activeEnergyEntries.value,
       e => e.day,
       e => e.activeEnergyKcal,
-      () => props.activeEnergyEntries.map(e => ({ x: toLocalDate(e.day).getTime(), y: e.activeEnergyKcal }))
+      () => activeEnergyEntries.value.map(e => ({ x: toLocalDate(e.day).getTime(), y: e.activeEnergyKcal }))
     )
     return barSeries(viewLabel.value ? `${viewLabel.value} active energy (kcal)` : 'Active energy (kcal)', data)
   }
 
   if (metricMode.value === 'bmi') {
     const data = bucketedAverage(
-      props.entries,
+      entries.value,
       e => e.recordedAt,
       e => e.bmi,
-      () => props.entries.filter(e => e.bmi != null).map(e => ({ x: new Date(e.recordedAt).getTime(), y: e.bmi as number }))
+      () => entries.value.filter(e => e.bmi != null).map(e => ({ x: new Date(e.recordedAt).getTime(), y: e.bmi as number }))
     )
     return lineSeries(viewLabel.value ? `${viewLabel.value} BMI` : 'BMI', data)
   }
@@ -385,10 +417,10 @@ const chartData = computed(() => {
   const unitLabel = props.unitsPreference === 'imperial' ? 'lb' : 'kg'
 
   const data = bucketedAverage(
-    props.entries,
+    entries.value,
     e => e.recordedAt,
     e => e.weightKg,
-    () => props.entries.map(e => ({ x: new Date(e.recordedAt).getTime(), y: e.weightKg }))
+    () => entries.value.map(e => ({ x: new Date(e.recordedAt).getTime(), y: e.weightKg }))
   ).map(point => ({ x: point.x, y: toDisplay(point.y) }))
 
   return lineSeries(viewLabel.value ? `${viewLabel.value} (${unitLabel})` : `Weight (${unitLabel})`, data)
@@ -481,17 +513,42 @@ const chartOptions = computed(() => ({
         :accent="chartAccent"
         stretch
       />
-      <div class="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
+      <!-- Time span (the parent's slider) spans the full width; aggregation
+           is the secondary control, right-aligned beneath it. -->
+      <slot name="range" />
+      <div class="flex justify-end">
         <SegmentedControl
           v-model="viewMode"
           :options="viewOptions"
           group-label="Aggregation"
           emphasis="quiet"
         />
-        <div class="min-w-0 sm:max-w-full">
-          <slot name="range" />
-        </div>
       </div>
+    </div>
+    <!-- Always mounted so screen readers announce span/metric changes; the
+         chart's own empty state covers a metric with no data at all. -->
+    <div
+      class="mb-4"
+      aria-live="polite"
+      aria-atomic="true"
+    >
+      <template v-if="hasData">
+        <p class="text-pretty text-2xl font-semibold leading-snug text-mist lg:text-3xl">
+          <template
+            v-for="(segment, index) in rangeChange.headline"
+            :key="index"
+          ><span
+            v-if="segment.highlight"
+            :class="accentTextClasses(chartAccent)"
+          >{{ segment.text }}</span><template v-else>{{ segment.text }}</template></template>
+        </p>
+        <p
+          v-if="rangeChange.detail"
+          class="mt-1 text-label text-fog"
+        >
+          {{ rangeChange.detail }}
+        </p>
+      </template>
     </div>
     <div
       class="h-64 rounded-sm p-3 transition-[background-color] duration-200"
