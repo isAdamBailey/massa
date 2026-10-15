@@ -18,6 +18,7 @@ import { Bar, Line } from 'vue-chartjs'
 import { BMI_BOUNDARIES } from '~/composables/useBmi'
 import {
   accentForChartMetric,
+  accentTextClasses,
   METRIC_ACCENT_OKLCH
 } from '~/composables/useMetricAccent'
 import { OVERWHELM_BASELINE } from '~/composables/useOverwhelm'
@@ -34,6 +35,8 @@ const props = defineProps<{
   activeEnergyEntries: ActiveEnergyEntry[]
   overwhelmEntries: OverwhelmEntry[]
   unitsPreference: UnitsPreference
+  /** The parent's time span in days, or null for All - drives the change summary. */
+  spanDays: number | null
 }>()
 
 const { kgToLb, category } = useBmi()
@@ -69,6 +72,17 @@ const EMBER_WASH = 'oklch(0.62 0.17 25 / 0.12)'
 
 const chartAccent = computed(() => accentForChartMetric(metricMode.value))
 const chartPalette = computed(() => METRIC_ACCENT_OKLCH[chartAccent.value])
+
+const { buildRangeChange } = useRangeChange()
+
+// How much the metric moved over the time span. Deliberately not tied to
+// viewMode: switching daily/weekly/monthly never changes the headline.
+const rangeChange = computed(() => buildRangeChange(
+  metricMode.value,
+  { weights: props.entries, energy: props.activeEnergyEntries, overwhelm: props.overwhelmEntries },
+  props.spanDays,
+  props.unitsPreference
+))
 
 // Dot size scales down as points get denser, so a 7-day view (few, spaced-out
 // points) gets a comfortably tappable dot while a multi-year view (dozens of
@@ -492,6 +506,31 @@ const chartOptions = computed(() => ({
           <slot name="range" />
         </div>
       </div>
+    </div>
+    <!-- Always mounted so screen readers announce span/metric changes; the
+         chart's own empty state covers a metric with no data at all. -->
+    <div
+      class="mb-4"
+      aria-live="polite"
+      aria-atomic="true"
+    >
+      <template v-if="hasData">
+        <p class="text-pretty text-2xl font-semibold leading-snug text-mist lg:text-3xl">
+          <template
+            v-for="(segment, index) in rangeChange.headline"
+            :key="index"
+          ><span
+            v-if="segment.highlight"
+            :class="accentTextClasses(chartAccent)"
+          >{{ segment.text }}</span><template v-else>{{ segment.text }}</template></template>
+        </p>
+        <p
+          v-if="rangeChange.detail"
+          class="mt-1 text-label text-fog"
+        >
+          {{ rangeChange.detail }}
+        </p>
+      </template>
     </div>
     <div
       class="h-64 rounded-sm p-3 transition-[background-color] duration-200"

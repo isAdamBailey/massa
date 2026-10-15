@@ -213,6 +213,7 @@ function formatDate(value?: string) {
             :active-energy-entries="activeEnergy.entries"
             :overwhelm-entries="overwhelm.entries"
             :units-preference="settings.settings.unitsPreference"
+            :span-days="presetDays[rangePreset]"
           >
             <template #range>
               <SegmentedControl

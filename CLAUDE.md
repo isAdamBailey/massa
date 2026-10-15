@@ -191,7 +191,10 @@ primary key.
   chartjs-adapter-date-fns). Control hierarchy: primary metric switcher
   (weight/BMI/energy/overwhelm, accent-aware) on its own row; quiet
   daily/weekly aggregation beside a `#range` slot for the parent’s time-span
-  control. Unit-aware. In overwhelm mode the tooltip footer shows that day's
+  control. Below the controls, an `aria-live` change summary from
+  `useRangeChange` (headline in the metric accent, Fog detail line) driven
+  by the `spanDays` prop; hidden when the metric has no data, since the
+  chart's own empty state covers that. Unit-aware. In overwhelm mode the tooltip footer shows that day's
   tags (daily) or the week's top 3 tags by frequency (weekly), computed
   client-side from already-fetched entries.
 - `app/composables/useOverwhelm.ts` — `OVERWHELM_BASELINE` (3) and
@@ -202,11 +205,12 @@ primary key.
   spanDays, units, now)` → `{ headline, detail }` for the Trend card's
   change-over-span sentence (headline is `useStatusSentence`-style
   segments). Takes full, unfiltered store entries and resolves the window
-  itself (`spanDays: null` = All). Weight/BMI compare 7-day averages at
+  itself (`spanDays: null` = All; otherwise today plus the `spanDays - 1`
+  calendar days before it). Weight/BMI compare 7-day averages at
   each end (raw first/last for the 7d span or data covering < 14 days),
   with a steady band (0.5 lb / 0.2 kg / 0.1 BMI). Energy compares its
   kcal/day average with the previous span of the same length, falling back
-  to start-vs-end; overwhelm reports its average against the baseline. A
+  to start-vs-end when that span has under 2 days of readings; overwhelm reports its average against the baseline. A
   window whose first reading is > 7 days past its start reads "since
   <date>". Independent of the chart's daily/weekly/monthly aggregation.
 - `app/components/LogCard.vue` — tabbed daily-entry card (Weight /

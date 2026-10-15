@@ -1,4 +1,4 @@
-import { format, subDays } from 'date-fns'
+import { format, startOfDay, subDays } from 'date-fns'
 import type { ActiveEnergyEntry } from '~/stores/activeEnergy'
 import type { OverwhelmEntry } from '~/stores/overwhelm'
 import type { UnitsPreference } from '~/stores/settings'
@@ -26,7 +26,11 @@ interface Reading {
 }
 
 interface Window {
-  /** null for All: the window starts at the first reading. */
+  /**
+   * Local midnight starting the span's first calendar day (today counts as
+   * one), so day-keyed entries land wholly inside or outside it. null for
+   * All: the window starts at the first reading.
+   */
   start: Date | null
   spanDays: number | null
 }
@@ -145,7 +149,7 @@ function hasEnoughReadings(readings: Reading[]): boolean {
 }
 
 function resolveWindow(spanDays: number | null, now: Date): Window {
-  return { start: spanDays === null ? null : subDays(now, spanDays), spanDays }
+  return { start: spanDays === null ? null : startOfDay(subDays(now, spanDays - 1)), spanDays }
 }
 
 function inWindow(readings: Reading[], window: Window, now: Date): Reading[] {
@@ -261,8 +265,8 @@ export function useRangeChange() {
 
   /**
    * Energy reads as a daily average, compared with the span of the same
-   * length right before it. For All, or when that earlier span has no data,
-   * it falls back to the smoothed start-vs-end comparison.
+   * length right before it. For All, or when that earlier span doesn't have
+   * enough readings of its own, it falls back to the smoothed start-vs-end comparison.
    */
   function summarizeEnergy(entries: ActiveEnergyEntry[], spanDays: number | null, now: Date): RangeChangeSummary {
     const window = resolveWindow(spanDays, now)
@@ -281,7 +285,9 @@ export function useRangeChange() {
     const totalText = `${integer.format(total)} kcal total`
 
     const previous = previousSpan(all, window)
-    if (previous.length > 0 && window.spanDays !== null) {
+    // A lone reading isn't a span to compare against - e.g. the boundary day
+    // a `from=`-filtered fetch returns just before the window.
+    if (hasEnoughReadings(previous) && window.spanDays !== null) {
       const previousAverage = mean(previous)
       const comparison = relativeTo(averageText, integer.format(previousAverage), previousAverage, average)
       return {

@@ -231,7 +231,7 @@ describe('useRangeChange', () => {
 
     it('says "same as" when the averages match', () => {
       const { buildRangeChange } = useRangeChange()
-      const entries = [energy(10, 400), energy(5, 400), energy(2, 400)]
+      const entries = [energy(10, 400), energy(9, 400), energy(5, 400), energy(2, 400)]
       expect(buildRangeChange('energy', sources({ energy: entries }), 7, 'metric', NOW).detail)
         .toBe('Same as the 7 days before · 800 kcal total')
     })
@@ -255,10 +255,18 @@ describe('useRangeChange', () => {
         .toBe('Down from 500 at the start · 5,600 kcal total')
     })
 
+    it('falls back to start vs end when the previous span has a single reading', () => {
+      const { buildRangeChange } = useRangeChange()
+      // What a from=-filtered fetch returns: just the boundary day before the window.
+      const entries = [energy(7, 900), energy(6, 300), energy(1, 500)]
+      expect(buildRangeChange('energy', sources({ energy: entries }), 7, 'metric', NOW).detail)
+        .toBe('Up from 300 at the start · 800 kcal total')
+    })
+
     it('treats day keys as local calendar days', () => {
       const { buildRangeChange } = useRangeChange()
-      // Exactly 7 days back is outside the 7-day window (start is NOW minus 7 days, at noon).
-      const entries = [energy(7, 900), energy(6, 400), energy(1, 400)]
+      // The 7-day window is today and the 6 days before it, so 7 days back is the previous span.
+      const entries = [energy(8, 900), energy(7, 900), energy(6, 400), energy(1, 400)]
       expect(buildRangeChange('energy', sources({ energy: entries }), 7, 'metric', NOW).detail)
         .toBe('Down from 900 in the 7 days before · 800 kcal total')
     })
