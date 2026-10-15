@@ -210,9 +210,12 @@ primary key.
   each end (raw first/last for the 7d span or data covering < 14 days),
   with a steady band (0.5 lb / 0.2 kg / 0.1 BMI). Energy compares its
   kcal/day average with the previous span of the same length, falling back
-  to start-vs-end when that span has under 2 days of readings; overwhelm reports its average against the baseline. A
-  window whose first reading is > 7 days past its start reads "since
-  <date>". Independent of the chart's daily/weekly/monthly aggregation.
+  to start-vs-end when that span has under 2 days of readings. Overwhelm
+  names a band rather than a number (below / around / a bit above / above
+  the baseline of 3, where "a bit above" ends at the elevated threshold of
+  4) and says whether the span ended calmer or more overwhelmed than it
+  began. A window whose first reading is > 7 days past its start reads
+  "since <date>". Independent of the chart's daily/weekly/monthly aggregation.
 - `app/components/LogCard.vue` — tabbed daily-entry card (Weight /
   Overwhelm); always opens on Weight and never re-picks the tab on its own —
   Overwhelm is a deliberate tap. The overwhelm tab's tag chips are optional —

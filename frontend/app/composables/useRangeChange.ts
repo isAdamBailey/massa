@@ -5,7 +5,7 @@ import type { UnitsPreference } from '~/stores/settings'
 import type { WeightEntry } from '~/stores/weights'
 import type { ChartMetricMode } from '~/composables/useMetricAccent'
 import type { StatusSentenceSegment } from '~/composables/useStatusSentence'
-import { OVERWHELM_BASELINE } from '~/composables/useOverwhelm'
+import { OVERWHELM_BASELINE, OVERWHELM_ELEVATED_THRESHOLD } from '~/composables/useOverwhelm'
 
 export interface RangeChangeSummary {
   /** The Trend card's hero sentence; only the number phrase is `highlight`. */
@@ -57,6 +57,15 @@ const SINCE_GRACE_DAYS = 7
 const STEADY_WEIGHT_LB = 0.5
 const STEADY_WEIGHT_KG = 0.2
 const STEADY_BMI = 0.1
+
+/**
+ * Overwhelm is a felt 1-10 scale, so the summary names a band rather than
+ * a decimal: within this distance of the baseline reads as "around" it.
+ */
+const OVERWHELM_AROUND_BASELINE = 0.5
+
+/** Start-to-end overwhelm changes smaller than this read as "about the same". */
+const OVERWHELM_STEADY = 0.5
 
 const NOT_ENOUGH: RangeChangeSummary = {
   headline: [{ text: 'Not enough readings in this span yet.' }],
@@ -305,8 +314,10 @@ export function useRangeChange() {
   }
 
   /**
-   * Overwhelm reads as an average over the span against the 1-10 baseline,
-   * with the detail line noting where the span started.
+   * Overwhelm is a felt 1-10 scale where a decimal like "3.8" means little,
+   * so it reads as a band relative to the baseline - below, around, a bit
+   * above (up to the dashboard's elevated threshold), or above - with the
+   * detail line saying how the span ended compared with how it started.
    */
   function summarizeOverwhelm(entries: OverwhelmEntry[], spanDays: number | null, now: Date): RangeChangeSummary {
     const window = resolveWindow(spanDays, now)
@@ -314,19 +325,31 @@ export function useRangeChange() {
     if (!hasEnoughReadings(readings)) {
       return NOT_ENOUGH
     }
-    const average = round1(mean(readings))
-    const offset = round1(average - OVERWHELM_BASELINE)
-    const baseline = offset === 0
-      ? `At your baseline of ${OVERWHELM_BASELINE}`
-      : `${fixed1(Math.abs(offset))} ${offset > 0 ? 'above' : 'below'} your baseline of ${OVERWHELM_BASELINE}`
+    const average = mean(readings)
+    let band: string
+    if (average < OVERWHELM_BASELINE - OVERWHELM_AROUND_BASELINE) {
+      band = 'Below your baseline'
+    } else if (average <= OVERWHELM_BASELINE + OVERWHELM_AROUND_BASELINE) {
+      band = 'Around your baseline'
+    } else if (average <= OVERWHELM_ELEVATED_THRESHOLD) {
+      band = 'A bit above your baseline'
+    } else {
+      band = 'Above your baseline'
+    }
     const { start, end } = endpoints(readings, window.spanDays)
-    const comparison = relativeTo(fixed1(end), fixed1(start), round1(start), round1(end))
+    const change = end - start
+    let detail: string
+    if (Math.abs(change) < OVERWHELM_STEADY) {
+      detail = 'About the same as at the start'
+    } else {
+      detail = change < 0 ? 'Calmer than at the start' : 'More overwhelmed than at the start'
+    }
     return {
       headline: [
-        { text: `Averaging ${fixed1(average)}`, highlight: true },
+        { text: band, highlight: true },
         { text: ` ${windowPhrase(window, readings[0]!, now)}` }
       ],
-      detail: `${baseline} · ${comparison} at the start`
+      detail
     }
   }
 

@@ -273,28 +273,48 @@ describe('useRangeChange', () => {
   })
 
   describe('overwhelm', () => {
-    it('reports the average against the baseline and the start', () => {
+    it('names a band against the baseline instead of a decimal', () => {
       const { buildRangeChange } = useRangeChange()
       const entries = [
         ...Array.from({ length: 7 }, (_, i) => overwhelm(29 - i, 4.5)),
         ...Array.from({ length: 16 }, (_, i) => overwhelm(22 - i, 3.8)),
         ...Array.from({ length: 7 }, (_, i) => overwhelm(6 - i, 3.2))
       ]
-      // mean = (7 * 4.5 + 16 * 3.8 + 7 * 3.2) / 30 ≈ 3.82
+      // mean = (7 * 4.5 + 16 * 3.8 + 7 * 3.2) / 30 ≈ 3.82, between 3.5 and the elevated threshold of 4
       expect(buildRangeChange('overwhelm', sources({ overwhelm: entries }), 30, 'metric', NOW)).toEqual({
-        headline: [{ text: 'Averaging 3.8', highlight: true }, { text: ' over the last 30 days' }],
-        detail: '0.8 above your baseline of 3 · down from 4.5 at the start'
+        headline: [{ text: 'A bit above your baseline', highlight: true }, { text: ' over the last 30 days' }],
+        detail: 'Calmer than at the start'
       })
     })
 
-    it('reads below and at the baseline', () => {
+    it('reads below, around and above the baseline', () => {
       const { buildRangeChange } = useRangeChange()
-      const below = [overwhelm(6, 2), overwhelm(1, 3)]
-      expect(buildRangeChange('overwhelm', sources({ overwhelm: below }), 7, 'metric', NOW).detail)
-        .toBe('0.5 below your baseline of 3 · up from 2.0 at the start')
-      const at = [overwhelm(6, 3), overwhelm(1, 3)]
-      expect(buildRangeChange('overwhelm', sources({ overwhelm: at }), 7, 'metric', NOW).detail)
-        .toBe('At your baseline of 3 · same as at the start')
+      const headline = (levels: [number, number]) => buildRangeChange(
+        'overwhelm',
+        sources({ overwhelm: [overwhelm(6, levels[0]), overwhelm(1, levels[1])] }),
+        7,
+        'metric',
+        NOW
+      ).headline[0]!.text
+      expect(headline([2, 2])).toBe('Below your baseline')
+      expect(headline([2, 3])).toBe('Around your baseline') // 2.5 is on the edge of "around"
+      expect(headline([3, 4])).toBe('Around your baseline') // 3.5 likewise
+      expect(headline([4, 4])).toBe('A bit above your baseline') // the elevated threshold itself
+      expect(headline([4, 5])).toBe('Above your baseline')
+    })
+
+    it('says how the span ended compared with how it started', () => {
+      const { buildRangeChange } = useRangeChange()
+      const detail = (levels: [number, number]) => buildRangeChange(
+        'overwhelm',
+        sources({ overwhelm: [overwhelm(6, levels[0]), overwhelm(1, levels[1])] }),
+        7,
+        'metric',
+        NOW
+      ).detail
+      expect(detail([2, 3])).toBe('More overwhelmed than at the start')
+      expect(detail([3, 2])).toBe('Calmer than at the start')
+      expect(detail([3, 3])).toBe('About the same as at the start')
     })
   })
 
