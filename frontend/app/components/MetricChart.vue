@@ -506,23 +506,35 @@ const chartOptions = computed(() => ({
 <template>
   <div>
     <div class="mb-4 space-y-3">
-      <SegmentedControl
-        v-model="metricMode"
-        :options="metricOptions"
-        group-label="Metric"
-        :accent="chartAccent"
-        stretch
-      />
-      <!-- Time span (the parent's slider) spans the full width; aggregation
-           is the secondary control, right-aligned beneath it. -->
-      <slot name="range" />
-      <div class="flex justify-end">
-        <SegmentedControl
-          v-model="viewMode"
-          :options="viewOptions"
-          group-label="Aggregation"
-          emphasis="quiet"
-        />
+      <!-- The parent's heading sits above the metric switcher on phones and
+           beside it from lg, with the switcher capped and right-aligned. -->
+      <div class="flex flex-col gap-4 lg:flex-row lg:flex-wrap lg:items-center lg:justify-between lg:gap-x-6 lg:gap-y-3">
+        <slot name="heading" />
+        <div class="lg:w-full lg:max-w-[28.75rem]">
+          <SegmentedControl
+            v-model="metricMode"
+            :options="metricOptions"
+            group-label="Metric"
+            :accent="chartAccent"
+            stretch
+          />
+        </div>
+      </div>
+      <!-- Time span (the parent's slider) spans the full width with the
+           secondary aggregation right-aligned beneath it; from lg they share
+           a row, the slider growing and the chips aligned to its track. -->
+      <div class="space-y-3 lg:flex lg:items-start lg:gap-6 lg:space-y-0">
+        <div class="lg:min-w-0 lg:flex-1">
+          <slot name="range" />
+        </div>
+        <div class="flex justify-end lg:mt-[1.05rem] lg:shrink-0">
+          <SegmentedControl
+            v-model="viewMode"
+            :options="viewOptions"
+            group-label="Aggregation"
+            emphasis="quiet"
+          />
+        </div>
       </div>
     </div>
     <!-- Always mounted so screen readers announce span/metric changes; the
@@ -551,7 +563,7 @@ const chartOptions = computed(() => ({
       </template>
     </div>
     <div
-      class="h-72 rounded-sm p-3 sm:h-96 transition-[background-color] duration-200"
+      class="h-72 rounded-sm p-3 transition-[background-color] duration-200 sm:h-96 lg:h-[clamp(22.5rem,48vh,34rem)]"
       :style="{ backgroundColor: chartPalette.wash }"
     >
       <div class="h-full rounded-sm bg-graphite/55 px-1 pt-2 pb-1">
