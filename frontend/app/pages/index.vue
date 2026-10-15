@@ -166,8 +166,8 @@ function formatDate(value?: string) {
 </script>
 
 <template>
-  <div class="min-h-screen bg-carbon px-4 py-6 text-mist sm:px-6 sm:py-10">
-    <div class="mx-auto flex max-w-3xl flex-col gap-4">
+  <div class="min-h-screen bg-carbon px-4 py-6 text-mist sm:px-6 sm:py-10 lg:px-10">
+    <div class="mx-auto flex max-w-[90rem] flex-col gap-4">
       <h1
         ref="pageHeading"
         tabindex="-1"
@@ -200,76 +200,84 @@ function formatDate(value?: string) {
         </button>
       </section>
 
-      <section
-        v-if="statusSentence"
-        ref="statusSection"
-        tabindex="-1"
-        class="rounded-md bg-slate p-5 outline-none"
-      >
-        <p class="text-pretty text-2xl font-semibold leading-snug text-mist sm:text-3xl">
-          <template
-            v-for="(segment, index) in statusSentence"
-            :key="index"
-          ><span
-            v-if="segment.tag"
-            class="text-cobalt"
-          >{{ segment.text }}</span><span
-            v-else-if="segment.highlight"
-            class="text-verdigris"
-          >{{ segment.text }}</span><template v-else>{{ segment.text }}</template></template>
-        </p>
-      </section>
-
-      <section class="space-y-3 rounded-md bg-slate p-5">
-        <div class="flex items-baseline justify-between gap-3">
-          <h2 class="text-title font-sans">
-            Log
-          </h2>
-          <p class="text-label text-fog">
-            Today
-          </p>
-        </div>
-        <LogCard
-          v-model="logTab"
-          @saved="refreshAfterSave"
-        />
-      </section>
-
-      <section class="space-y-4 rounded-md bg-slate p-5">
-        <h2 class="text-title font-sans">
-          Trend
-        </h2>
-
-        <div
-          :aria-busy="weights.loading || activeEnergy.loading || overwhelm.loading"
-        >
-          <MetricChart
-            v-model:view-mode="chartViewMode"
-            v-model:metric-mode="chartMetricMode"
-            :entries="displayEntries"
-            :active-energy-entries="activeEnergy.entries"
-            :overwhelm-entries="overwhelm.entries"
-            :units-preference="settings.settings.unitsPreference"
-            :span-days="presetDays[rangePreset]"
+      <!-- One column (status → Log → Trend) below lg; from lg, status and Log
+           on the left and Trend filling the rest. DOM order is the phone
+           order, so tab and reading order match at every width. -->
+      <div class="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(20rem,25rem)_minmax(0,1fr)] lg:items-start lg:gap-6">
+        <div class="flex flex-col gap-4">
+          <section
+            v-if="statusSentence"
+            ref="statusSection"
+            tabindex="-1"
+            class="rounded-md bg-slate p-5 outline-none"
           >
-            <template #range>
-              <TimeSpanSlider
-                v-model="rangePreset"
-                :stops="rangePresets"
-                :accent="accentForChartMetric(chartMetricMode)"
-                @commit="applyDefaultViewMode"
-              />
-            </template>
-          </MetricChart>
+            <p class="text-pretty text-2xl font-semibold leading-snug text-mist sm:text-3xl">
+              <template
+                v-for="(segment, index) in statusSentence"
+                :key="index"
+              ><span
+                v-if="segment.tag"
+                class="text-cobalt"
+              >{{ segment.text }}</span><span
+                v-else-if="segment.highlight"
+                class="text-verdigris"
+              >{{ segment.text }}</span><template v-else>{{ segment.text }}</template></template>
+            </p>
+          </section>
+
+          <section class="space-y-3 rounded-md bg-slate p-5">
+            <div class="flex items-baseline justify-between gap-3">
+              <h2 class="text-title font-sans">
+                Log
+              </h2>
+              <p class="text-label text-fog">
+                Today
+              </p>
+            </div>
+            <LogCard
+              v-model="logTab"
+              @saved="refreshAfterSave"
+            />
+          </section>
         </div>
 
-        <p
-          v-if="weights.error"
-          class="text-body text-ember"
-        >
-          {{ weights.error }}
-        </p>
-      </section>
+        <section class="space-y-4 rounded-md bg-slate p-5">
+          <div
+            :aria-busy="weights.loading || activeEnergy.loading || overwhelm.loading"
+          >
+            <MetricChart
+              v-model:view-mode="chartViewMode"
+              v-model:metric-mode="chartMetricMode"
+              :entries="displayEntries"
+              :active-energy-entries="activeEnergy.entries"
+              :overwhelm-entries="overwhelm.entries"
+              :units-preference="settings.settings.unitsPreference"
+              :span-days="presetDays[rangePreset]"
+            >
+              <template #heading>
+                <h2 class="text-title font-sans">
+                  Trend
+                </h2>
+              </template>
+              <template #range>
+                <TimeSpanSlider
+                  v-model="rangePreset"
+                  :stops="rangePresets"
+                  :accent="accentForChartMetric(chartMetricMode)"
+                  @commit="applyDefaultViewMode"
+                />
+              </template>
+            </MetricChart>
+          </div>
+
+          <p
+            v-if="weights.error"
+            class="text-body text-ember"
+          >
+            {{ weights.error }}
+          </p>
+        </section>
+      </div>
     </div>
   </div>
 </template>

@@ -192,10 +192,13 @@ primary key.
 - `app/components/MetricChart.vue` — Chart.js chart (via vue-chartjs +
   chartjs-adapter-date-fns). Takes **full, unfiltered** history plus
   `spanDays` and filters to the span itself (via `spanStart`), so span
-  changes never refetch. Control hierarchy: primary metric switcher
-  (weight/BMI/energy/overwhelm, accent-aware) on its own row; the parent's
-  time-span control in a full-width `#range` slot; quiet
-  daily/weekly/monthly aggregation right-aligned beneath it. Below the
+  changes never refetch. Control hierarchy: the parent's `#heading` slot
+  and the primary metric switcher (weight/BMI/energy/overwhelm,
+  accent-aware) — stacked on phones, one row from `lg` with the switcher
+  capped at 460px and right-aligned; then the parent's time-span control in
+  the `#range` slot with quiet daily/weekly/monthly aggregation
+  right-aligned beneath it (from `lg`, beside it, level with the track).
+  Chart height `h-72`, `sm:h-96`, `lg:h-[clamp(22.5rem,48vh,34rem)]`. Below the
   controls, an `aria-live` change summary from `useRangeChange` (headline
   in the metric accent, Fog detail line); hidden when the metric has no
   data in the span, since the chart's own empty state covers that.
@@ -241,8 +244,12 @@ primary key.
 - `app/pages/index.vue` — dashboard, top to bottom: status sentence (latest
   weight + this-week verdict; overwhelm block only when current-week avg is
   **over 4** — cobalt avg + top 2 tags), Log card, Trend chart (the last
-  section; `h-72`, `sm:h-96`), plus the Google sync status banner. No entry
-  history here. Fetches **all** history once (on mount and after saves; no
+  section), plus the Google sync status banner. No entry history here.
+  Container `max-w-[90rem]` with `px-4 sm:px-6 lg:px-10`; one column below
+  `lg`, then a two-column grid (`minmax(20rem,25rem)` | rest): status and
+  Log on the left, Trend filling the right. DOM order is the phone order,
+  so tab/reading order is the same at every width. Settings stays
+  `max-w-3xl`. Fetches **all** history once (on mount and after saves; no
   `from=`). After a save it awaits the reload, then scrolls to the top
   (`smooth`, or `auto` under `prefers-reduced-motion`) and focuses the
   status section (`tabindex="-1"`; falls back to the sr-only `h1`); a failed
