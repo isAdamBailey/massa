@@ -1,17 +1,10 @@
 <script setup lang="ts" generic="T extends string">
 import type { MetricAccent } from '~/composables/useMetricAccent'
-import { accentActiveClasses, accentBorderClasses } from '~/composables/useMetricAccent'
+import { accentActiveClasses } from '~/composables/useMetricAccent'
 
 export interface SegmentedOption<T extends string = string> {
   value: T
   label: string
-  /**
-   * Per-option accent - when set, this option previews its own active color
-   * as an idle-state border rather than sharing the group's single `accent`.
-   * Used for groups like the metric switcher where each option has its own
-   * identity color, unlike a plain on/off toggle.
-   */
-  accent?: MetricAccent
 }
 
 const model = defineModel<T>({ required: true })
@@ -19,59 +12,80 @@ const model = defineModel<T>({ required: true })
 const props = withDefaults(defineProps<{
   options: SegmentedOption<T>[]
   groupLabel: string
+  /** Primary only: fill the container width instead of sizing to the labels. */
   stretch?: boolean
   /** Primary is the metric focus; quiet is for secondary toggles on the same surface. */
   emphasis?: 'primary' | 'quiet'
   accent?: MetricAccent
-  /**
-   * Horizontal scroll instead of wrap — for longer quiet option sets (e.g.
-   * time spans) so every option stays a full-size tap target on phones.
-   */
-  scrollable?: boolean
 }>(), {
   emphasis: 'primary',
   accent: 'verdigris'
 })
 
-// Per-option accents (the metric switcher) read as distinct outlined chips
-// rather than a single filled track, so each identity color is visible even
-// before selection.
-const hasPerOptionAccents = computed(() => props.options.some(o => o.accent))
+const activeIndex = computed(() => props.options.findIndex(o => o.value === model.value))
+
+/**
+ * Primary is a single Graphite track of equal columns with one accent
+ * indicator that slides under the active option. The track has 4px of
+ * padding and 4px gaps (p-1, gap-1), so the indicator is one column wide and
+ * moves by its own width plus a gap per step. Equal columns at every width
+ * keep that arithmetic exact - and keep the metric switcher a single row.
+ */
+const trackStyle = computed(() => ({
+  gridTemplateColumns: `repeat(${props.options.length}, minmax(0, 1fr))`
+}))
+
+const indicatorStyle = computed(() => ({
+  width: `calc((100% - 8px - ${props.options.length - 1} * 4px) / ${props.options.length})`,
+  transform: `translateX(calc(${activeIndex.value} * (100% + 4px)))`
+}))
 </script>
 
 <template>
   <div
+    v-if="emphasis === 'quiet'"
     role="group"
     :aria-label="groupLabel"
-    :class="[
-      emphasis === 'quiet'
-        ? (scrollable
-            ? 'flex max-w-full gap-1 overflow-x-auto overscroll-x-contain touch-pan-x scrollbar-none'
-            : 'flex flex-wrap items-center gap-1')
-        : (hasPerOptionAccents
-            ? (stretch ? 'grid grid-cols-2 gap-2 sm:flex sm:flex-wrap' : 'flex flex-wrap gap-2')
-            : (stretch
-                ? 'grid grid-cols-2 gap-1 rounded-sm bg-graphite p-1 sm:flex'
-                : 'flex gap-1 rounded-sm bg-graphite p-1'))
-    ]"
+    class="flex flex-wrap items-center gap-1"
   >
     <button
       v-for="option in options"
       :key="option.value"
       type="button"
+      :aria-pressed="model === option.value"
       class="min-h-11 rounded-sm px-3 text-label transition-colors duration-150"
-      :class="[
-        stretch ? 'sm:flex-1' : '',
-        scrollable ? 'shrink-0' : '',
-        option.accent ? 'border-2' : '',
-        option.accent
-          ? (model === option.value
-              ? `${accentActiveClasses(option.accent)} border-transparent`
-              : `${accentBorderClasses(option.accent)} text-mist hover:bg-graphite-hover`)
-          : (model === option.value
-              ? (emphasis === 'quiet' ? 'bg-hairline text-mist' : accentActiveClasses(accent))
-              : (emphasis === 'quiet' ? 'text-fog hover:text-mist' : 'text-mist hover:bg-graphite-hover'))
-      ]"
+      :class="model === option.value ? 'bg-hairline text-mist' : 'text-fog hover:text-mist'"
+      @click="model = option.value"
+    >
+      {{ option.label }}
+    </button>
+  </div>
+
+  <div
+    v-else
+    role="group"
+    :aria-label="groupLabel"
+    class="relative grid gap-1 rounded-sm bg-graphite p-1"
+    :class="stretch ? 'w-full' : 'w-max max-w-full'"
+    :style="trackStyle"
+  >
+    <!-- Decorative: the active button carries aria-pressed. Slides between
+         options and cross-fades accent when the metric changes; both are
+         instant under prefers-reduced-motion. -->
+    <span
+      v-if="activeIndex >= 0"
+      aria-hidden="true"
+      class="pointer-events-none absolute inset-y-1 left-1 rounded-sm transition-[transform,background-color] duration-200 ease-[cubic-bezier(0.16,1,0.3,1)] motion-reduce:transition-none"
+      :class="accentActiveClasses(accent)"
+      :style="indicatorStyle"
+    />
+    <button
+      v-for="option in options"
+      :key="option.value"
+      type="button"
+      :aria-pressed="model === option.value"
+      class="relative min-h-11 min-w-0 rounded-sm text-label transition-colors duration-150 motion-reduce:transition-none max-[359px]:text-[0.6875rem] max-[359px]:tracking-tight sm:px-1"
+      :class="model === option.value ? 'text-carbon' : 'text-mist hover:bg-graphite-hover'"
       @click="model = option.value"
     >
       {{ option.label }}
