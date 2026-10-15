@@ -214,7 +214,9 @@ primary key.
   names a band rather than a number (below / around / a bit above / above
   the baseline of 3, where "a bit above" ends at the elevated threshold of
   4) and says whether the span ended calmer or more overwhelmed than it
-  began. A window whose first reading is > 7 days past its start reads
+  began. Unlogged days count as baseline, so "below"/"above" take enough
+  explicit entries to move the whole span's average (a "since <date>" span
+  starts at the first entry). A window whose first reading is > 7 days past its start reads
   "since <date>". Independent of the chart's daily/weekly/monthly aggregation.
 - `app/components/LogCard.vue` — tabbed daily-entry card (Weight /
   Overwhelm); always opens on Weight and never re-picks the tab on its own —

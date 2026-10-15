@@ -50,9 +50,11 @@ describe('useRangeChange', () => {
   describe('not enough data', () => {
     it('reports an empty span', () => {
       const { buildRangeChange } = useRangeChange()
-      for (const metric of ['weight', 'bmi', 'energy', 'overwhelm'] as const) {
+      // Overwhelm reads an empty span as baseline instead (see its own tests).
+      for (const metric of ['weight', 'bmi', 'energy'] as const) {
         expect(buildRangeChange(metric, sources({}), 90, 'metric', NOW)).toEqual(NOT_ENOUGH)
       }
+      expect(buildRangeChange('overwhelm', sources({}), null, 'metric', NOW)).toEqual(NOT_ENOUGH)
     })
 
     it('reports a single reading', () => {
@@ -273,48 +275,69 @@ describe('useRangeChange', () => {
   })
 
   describe('overwhelm', () => {
-    it('names a band against the baseline instead of a decimal', () => {
+    function summarize(entries: OverwhelmEntry[], spanDays: number | null = 7) {
       const { buildRangeChange } = useRangeChange()
+      return buildRangeChange('overwhelm', sources({ overwhelm: entries }), spanDays, 'metric', NOW)
+    }
+
+    it('names a band against the baseline instead of a decimal', () => {
       const entries = [
         ...Array.from({ length: 7 }, (_, i) => overwhelm(29 - i, 4.5)),
         ...Array.from({ length: 16 }, (_, i) => overwhelm(22 - i, 3.8)),
         ...Array.from({ length: 7 }, (_, i) => overwhelm(6 - i, 3.2))
       ]
-      // mean = (7 * 4.5 + 16 * 3.8 + 7 * 3.2) / 30 ≈ 3.82, between 3.5 and the elevated threshold of 4
-      expect(buildRangeChange('overwhelm', sources({ overwhelm: entries }), 30, 'metric', NOW)).toEqual({
+      // Every day logged: mean = (7 * 4.5 + 16 * 3.8 + 7 * 3.2) / 30 ≈ 3.82,
+      // between 3.5 and the elevated threshold of 4.
+      expect(summarize(entries, 30)).toEqual({
         headline: [{ text: 'A bit above your baseline', highlight: true }, { text: ' over the last 30 days' }],
         detail: 'Calmer than at the start'
       })
     })
 
-    it('reads below, around and above the baseline', () => {
-      const { buildRangeChange } = useRangeChange()
-      const headline = (levels: [number, number]) => buildRangeChange(
-        'overwhelm',
-        sources({ overwhelm: [overwhelm(6, levels[0]), overwhelm(1, levels[1])] }),
-        7,
-        'metric',
-        NOW
-      ).headline[0]!.text
-      expect(headline([2, 2])).toBe('Below your baseline')
-      expect(headline([2, 3])).toBe('Around your baseline') // 2.5 is on the edge of "around"
-      expect(headline([3, 4])).toBe('Around your baseline') // 3.5 likewise
-      expect(headline([4, 4])).toBe('A bit above your baseline') // the elevated threshold itself
-      expect(headline([4, 5])).toBe('Above your baseline')
+    it('reads a fully logged span as below, around or above the baseline', () => {
+      const week = (level: number) => Array.from({ length: 7 }, (_, i) => overwhelm(i, level))
+      expect(summarize(week(2)).headline[0]!.text).toBe('Below your baseline')
+      expect(summarize(week(3)).headline[0]!.text).toBe('Around your baseline')
+      expect(summarize(week(3.5)).headline[0]!.text).toBe('Around your baseline')
+      expect(summarize(week(4)).headline[0]!.text).toBe('A bit above your baseline') // the elevated threshold itself
+      expect(summarize(week(5)).headline[0]!.text).toBe('Above your baseline')
+    })
+
+    it('counts unlogged days as baseline, so one low entry is not "below"', () => {
+      // (1 + 6 * 3) / 7 ≈ 2.71
+      expect(summarize([overwhelm(3, 1)]).headline[0]!.text).toBe('Around your baseline')
+      // (1 + 1 + 5 * 3) / 7 ≈ 2.43
+      expect(summarize([overwhelm(5, 1), overwhelm(2, 1)]).headline[0]!.text).toBe('Below your baseline')
+    })
+
+    it('dampens a couple of hard days in a long, mostly unlogged span', () => {
+      // (3 + 2 * 8 + 27 * 3) / 30 ≈ 3.33; the day-29 entry keeps it "over the last 30 days".
+      expect(summarize([overwhelm(29, 3), overwhelm(15, 8), overwhelm(12, 8)], 30)).toEqual({
+        headline: [{ text: 'Around your baseline', highlight: true }, { text: ' over the last 30 days' }],
+        detail: 'About the same as at the start'
+      })
+    })
+
+    it('reads a span with no entries as around the baseline', () => {
+      expect(summarize([overwhelm(40, 9)], 30)).toEqual({
+        headline: [{ text: 'Around your baseline', highlight: true }, { text: ' over the last 30 days' }],
+        detail: 'Nothing logged in this span'
+      })
+    })
+
+    it('starts the span at the first entry when it reads "since"', () => {
+      // Logging started 10 days ago; the 80 days before that aren't counted as baseline.
+      const entries = Array.from({ length: 11 }, (_, i) => overwhelm(i, 5))
+      expect(summarize(entries, 90).headline).toEqual([
+        { text: 'Above your baseline', highlight: true },
+        { text: ' since Jun 20' }
+      ])
     })
 
     it('says how the span ended compared with how it started', () => {
-      const { buildRangeChange } = useRangeChange()
-      const detail = (levels: [number, number]) => buildRangeChange(
-        'overwhelm',
-        sources({ overwhelm: [overwhelm(6, levels[0]), overwhelm(1, levels[1])] }),
-        7,
-        'metric',
-        NOW
-      ).detail
-      expect(detail([2, 3])).toBe('More overwhelmed than at the start')
-      expect(detail([3, 2])).toBe('Calmer than at the start')
-      expect(detail([3, 3])).toBe('About the same as at the start')
+      expect(summarize([overwhelm(6, 2), overwhelm(0, 3)]).detail).toBe('More overwhelmed than at the start')
+      expect(summarize([overwhelm(6, 4), overwhelm(0, 2)]).detail).toBe('Calmer than at the start')
+      expect(summarize([overwhelm(6, 3), overwhelm(0, 3)]).detail).toBe('About the same as at the start')
     })
   })
 

@@ -1,4 +1,4 @@
-import { format, startOfDay, subDays } from 'date-fns'
+import { addDays, format, startOfDay, subDays } from 'date-fns'
 import type { ActiveEnergyEntry } from '~/stores/activeEnergy'
 import type { OverwhelmEntry } from '~/stores/overwhelm'
 import type { UnitsPreference } from '~/stores/settings'
@@ -318,13 +318,34 @@ export function useRangeChange() {
    * so it reads as a band relative to the baseline - below, around, a bit
    * above (up to the dashboard's elevated threshold), or above - with the
    * detail line saying how the span ended compared with how it started.
+   *
+   * Hearing nothing is read as a baseline day, not as a calm one: every
+   * unlogged day in the span counts as OVERWHELM_BASELINE. So "below" (or
+   * "above") takes enough explicit entries to move the whole span's
+   * average, and a span with no entries reads as around the baseline.
    */
   function summarizeOverwhelm(entries: OverwhelmEntry[], spanDays: number | null, now: Date): RangeChangeSummary {
     const window = resolveWindow(spanDays, now)
-    const readings = sorted(inWindow(entries.map(e => ({ at: toLocalDate(e.day), value: e.overwhelmLevel })), window, now))
-    if (!hasEnoughReadings(readings)) {
+    const logged = sorted(inWindow(entries.map(e => ({ at: toLocalDate(e.day), value: e.overwhelmLevel })), window, now))
+    const first = logged[0]
+    if (!first && window.start === null) {
       return NOT_ENOUGH
     }
+
+    // The span runs from the window start, or from the first entry when the
+    // headline says "since <date>" - days before someone started logging
+    // aren't days they were at baseline.
+    const phrase = first ? windowPhrase(window, first, now) : `over the last ${spanName(window.spanDays!)}`
+    const from = phrase.startsWith('since') ? startOfDay(first!.at) : window.start!
+    const byDay = new Map(logged.map(r => [localDayKey(r.at), r.value]))
+    const readings: Reading[] = []
+    for (let day = from; day <= now; day = addDays(day, 1)) {
+      readings.push({ at: day, value: byDay.get(localDayKey(day)) ?? OVERWHELM_BASELINE })
+    }
+    if (readings.length < 2) {
+      return NOT_ENOUGH
+    }
+
     const average = mean(readings)
     let band: string
     if (average < OVERWHELM_BASELINE - OVERWHELM_AROUND_BASELINE) {
@@ -339,7 +360,9 @@ export function useRangeChange() {
     const { start, end } = endpoints(readings, window.spanDays)
     const change = end - start
     let detail: string
-    if (Math.abs(change) < OVERWHELM_STEADY) {
+    if (!first) {
+      detail = 'Nothing logged in this span'
+    } else if (Math.abs(change) < OVERWHELM_STEADY) {
       detail = 'About the same as at the start'
     } else {
       detail = change < 0 ? 'Calmer than at the start' : 'More overwhelmed than at the start'
@@ -347,7 +370,7 @@ export function useRangeChange() {
     return {
       headline: [
         { text: band, highlight: true },
-        { text: ` ${windowPhrase(window, readings[0]!, now)}` }
+        { text: ` ${phrase}` }
       ],
       detail
     }
