@@ -51,10 +51,10 @@ const viewMode = defineModel<ViewMode>('viewMode', { default: 'weekly' })
 const metricMode = defineModel<MetricMode>('metricMode', { default: 'weight' })
 
 const metricOptions: SegmentedOption<MetricMode>[] = [
-  { value: 'weight', label: 'Weight', accent: 'verdigris' },
-  { value: 'bmi', label: 'BMI', accent: 'verdigris' },
-  { value: 'energy', label: 'Energy', accent: 'copper' },
-  { value: 'overwhelm', label: 'Overwhelm', accent: 'cobalt' }
+  { value: 'weight', label: 'Weight' },
+  { value: 'bmi', label: 'BMI' },
+  { value: 'energy', label: 'Energy' },
+  { value: 'overwhelm', label: 'Overwhelm' }
 ]
 
 const viewOptions: SegmentedOption<ViewMode>[] = [

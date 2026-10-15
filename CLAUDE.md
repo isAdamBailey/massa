@@ -181,12 +181,14 @@ primary key.
 - `app/middleware/auth.global.ts` — redirects unauthenticated users to
   `/login`, calling `auth.fetchMe()` once on first navigation.
 - `app/components/SegmentedControl.vue` — shared toggle group with
-  `emphasis: 'primary' | 'quiet'`. Primary uses a Graphite track and the
-  metric accent for the active option; quiet is trackless Fog/Mist chips
-  (no accent) for secondary controls. `stretch` lays primary options out as
-  a 2-column grid on small screens and a flex row from `sm` up. `scrollable`
-  keeps long quiet option sets (time spans) in a horizontal touch scroller
-  so every option stays a ≥44px tap target. All options use `min-h-11`.
+  `emphasis: 'primary' | 'quiet'`. Primary is a single Graphite track of
+  equal columns (one per option, at every width) with one indicator in the
+  group's `accent` that slides under the active option, active label in
+  Carbon; the slide is instant under `prefers-reduced-motion`. `stretch`
+  fills the container width. Below 360px the label steps down to 11px so
+  the 4-option metric switcher still fits "Overwhelm" in a quarter column.
+  Quiet is trackless chips (active Hairline bg + Mist, rest Fog, no accent)
+  for secondary controls. Options carry `aria-pressed`; all use `min-h-11`.
 - `app/components/MetricChart.vue` — Chart.js chart (via vue-chartjs +
   chartjs-adapter-date-fns). Takes **full, unfiltered** history plus
   `spanDays` and filters to the span itself (via `spanStart`), so span

@@ -54,13 +54,6 @@ const accentTextClass: Record<MetricAccent, string> = {
   cobalt: 'text-cobalt'
 }
 
-/** Idle-state border for a button that previews its own active accent before selection. */
-const accentBorderClass: Record<MetricAccent, string> = {
-  verdigris: 'border-verdigris/50',
-  copper: 'border-copper/50',
-  cobalt: 'border-cobalt/50'
-}
-
 export function accentForChartMetric(mode: ChartMetricMode): MetricAccent {
   switch (mode) {
     case 'energy':
@@ -90,8 +83,4 @@ export function accentFocusClasses(accent: MetricAccent): string {
 
 export function accentTextClasses(accent: MetricAccent): string {
   return accentTextClass[accent]
-}
-
-export function accentBorderClasses(accent: MetricAccent): string {
-  return accentBorderClass[accent]
 }
