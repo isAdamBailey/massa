@@ -5,6 +5,8 @@ import type { UnitsPreference } from '~/stores/settings'
 const google = useGoogleHealthStore()
 const settings = useSettingsStore()
 const overwhelmTags = useOverwhelmTagsStore()
+const weights = useWeightsStore()
+const overwhelm = useOverwhelmStore()
 const { cmToIn, inToCm } = useBmi()
 const route = useRoute()
 const router = useRouter()
@@ -26,7 +28,16 @@ async function onToggleSyncEnabled() {
 }
 
 onMounted(async () => {
-  await Promise.all([google.fetchStatus(), settings.fetchSettings(), overwhelmTags.fetchTags()])
+  // Entry history reads the shared weights/overwhelm stores, so edits and
+  // deletes here are already reflected when going back to the dashboard.
+  // These are the same fetch-all calls the dashboard makes.
+  await Promise.all([
+    google.fetchStatus(),
+    settings.fetchSettings(),
+    overwhelmTags.fetchTags(),
+    weights.fetchEntries(),
+    overwhelm.fetchEntries()
+  ])
 
   if (route.query.google === 'connected') {
     await router.replace({ query: {} })
@@ -128,6 +139,10 @@ async function onArchiveTag(id: string) {
       <h1 class="text-headline font-sans">
         Settings
       </h1>
+
+      <section class="rounded-md bg-slate p-5">
+        <EntryHistory />
+      </section>
 
       <section class="space-y-3 rounded-md bg-slate p-5">
         <h2 class="text-title font-sans">

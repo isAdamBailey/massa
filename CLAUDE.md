@@ -232,17 +232,27 @@ primary key.
   Overwhelm); always opens on Weight and never re-picks the tab on its own —
   Overwhelm is a deliberate tap. The overwhelm tab's tag chips are optional —
   a bare 1-10 tap-and-save with no tags is the fast path.
-- `app/pages/index.vue` — dashboard: latest weight + this-week verdict;
-  overwhelm block only when current-week avg is **over 4** (cobalt avg +
-  top 2 tags). Log card, Trend chart, Google sync status banner. Fetches
-  **all** history once (on mount and after saves; no `from=`). Trend time
+- `app/components/EntryHistory.vue` — Weight/Overwhelm tabs over
+  `WeightEntryList` / `OverwhelmEntryList` (last 7 days, inline
+  edit/delete), reading the shared `weights` / `overwhelm` stores. Lives on
+  Settings, not the dashboard.
+- `app/pages/index.vue` — dashboard, top to bottom: status sentence (latest
+  weight + this-week verdict; overwhelm block only when current-week avg is
+  **over 4** — cobalt avg + top 2 tags), Log card, Trend chart (the last
+  section; `h-72`, `sm:h-96`), plus the Google sync status banner. No entry
+  history here. Fetches **all** history once (on mount and after saves; no
+  `from=`). After a save it awaits the reload, then scrolls to the top
+  (`smooth`, or `auto` under `prefers-reduced-motion`) and focuses the
+  status section (`tabindex="-1"`; falls back to the sr-only `h1`); a failed
+  reload stays put so the error is visible. Trend time
   spans are 7d / 30d / 90d / **6m (182 days)** / 1y / all, passed into
   MetricChart's `#range` slot as a `TimeSpanSlider`; settling on a span
   applies its default aggregation (7d daily, 30d/90d weekly, longer
   monthly). The week verdict keeps an explicit 90-day horizon so it
   doesn't depend on the span or read months-old weeks.
-- `app/pages/settings/index.vue` — Google Health connect/disconnect/sync,
-  units preference, manual height override, and the overwhelm tag
+- `app/pages/settings/index.vue` — entry history (`EntryHistory`, first
+  section; the page fetches weights/overwhelm itself on mount), Google
+  Health connect/disconnect/sync, units preference, manual height override, and the overwhelm tag
   vocabulary editor (create/rename/archive).
 
 ## Testing conventions
