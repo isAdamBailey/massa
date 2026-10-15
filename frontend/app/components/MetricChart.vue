@@ -551,7 +551,7 @@ const chartOptions = computed(() => ({
       </template>
     </div>
     <div
-      class="h-64 rounded-sm p-3 transition-[background-color] duration-200"
+      class="h-72 rounded-sm p-3 sm:h-96 transition-[background-color] duration-200"
       :style="{ backgroundColor: chartPalette.wash }"
     >
       <div class="h-full rounded-sm bg-graphite/55 px-1 pt-2 pb-1">

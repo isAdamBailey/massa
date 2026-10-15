@@ -20,13 +20,11 @@ const rangePreset = ref<RangePreset>('90d')
 const chartViewMode = ref<ChartViewMode>('weekly')
 const chartMetricMode = ref<ChartMetricMode>('weight')
 const logTab = ref<LogTab>('weight')
-const recentTab = ref<LogTab>('weight')
 
-// Log is the focus control: when it changes, Trend and Recent follow.
-// Those sections can still be toggled independently afterward.
+// Log is the focus control: when it changes, Trend follows. Trend can still
+// be toggled independently afterward.
 watch(logTab, (tab) => {
   chartMetricMode.value = tab
-  recentTab.value = tab
 })
 
 const rangePresets: TimeSpanStop<RangePreset>[] = [
@@ -89,9 +87,26 @@ const { buildStatusSentence } = useStatusSentence()
  * active energy data) before it saves the weight entry, so all that's left
  * is to refresh local data to reflect it - and, for the overwhelm tab, the
  * newly saved entry itself.
+ *
+ * Once the reload lands, return to the top so the status sentence and the
+ * Trend summary - already reflecting the new entry - are what come into
+ * view, and move focus there so keyboard and screen-reader users land on it
+ * too instead of staying on the Save button. If the reload fails, stay put
+ * so the error remains visible where it is.
  */
+const statusSection = ref<HTMLElement | null>(null)
+const pageHeading = ref<HTMLElement | null>(null)
+
 async function refreshAfterSave() {
   await loadEntries()
+  if (weights.error || activeEnergy.error || overwhelm.error) {
+    return
+  }
+  await nextTick()
+  const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+  window.scrollTo({ top: 0, behavior: reduceMotion ? 'auto' : 'smooth' })
+  // preventScroll so focusing doesn't cut the smooth scroll short.
+  ;(statusSection.value ?? pageHeading.value)?.focus({ preventScroll: true })
 }
 
 /**
@@ -153,7 +168,11 @@ function formatDate(value?: string) {
 <template>
   <div class="min-h-screen bg-carbon px-4 py-6 text-mist sm:px-6 sm:py-10">
     <div class="mx-auto flex max-w-3xl flex-col gap-4">
-      <h1 class="sr-only">
+      <h1
+        ref="pageHeading"
+        tabindex="-1"
+        class="sr-only"
+      >
         Dashboard
       </h1>
       <AppHeader />
@@ -183,7 +202,9 @@ function formatDate(value?: string) {
 
       <section
         v-if="statusSentence"
-        class="rounded-md bg-slate p-5"
+        ref="statusSection"
+        tabindex="-1"
+        class="rounded-md bg-slate p-5 outline-none"
       >
         <p class="text-pretty text-2xl font-semibold leading-snug text-mist sm:text-3xl">
           <template
@@ -248,10 +269,6 @@ function formatDate(value?: string) {
         >
           {{ weights.error }}
         </p>
-      </section>
-
-      <section class="rounded-md bg-slate p-5">
-        <RecentEntries v-model="recentTab" />
       </section>
     </div>
   </div>
