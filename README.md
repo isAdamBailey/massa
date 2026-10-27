@@ -11,7 +11,7 @@ allowlist of email addresses via passwordless magic-link login.
 
 - **Backend**: Go, [chi](https://github.com/go-chi/chi), pgx, sqlc, golang-migrate
 - **Frontend**: Nuxt 4, Tailwind CSS v4, Pinia, Chart.js
-- **Database**: PostgreSQL 16
+- **Database**: PostgreSQL 18
 - **Local dev**: Docker Compose
 
 ## Project layout
@@ -25,8 +25,7 @@ docs/       Deployment, SES, and Google Health setup
 
 ## Deployment
 
-See [docs/DEPLOY.md](docs/DEPLOY.md) for production on a VPS with
-[Laravel Forge](https://forge.laravel.com) (push-to-deploy from GitHub).
+Production is [massa.adambailey.io](https://massa.adambailey.io) on the shared Forge server. A push to `main` deploys it. See [docs/DEPLOY.md](docs/DEPLOY.md), and [docs/GOOGLE_HEALTH_SETUP.md](docs/GOOGLE_HEALTH_SETUP.md) for Google OAuth.
 
 ## Local development
 

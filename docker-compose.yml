@@ -1,6 +1,6 @@
 services:
   postgres:
-    image: postgres:16-alpine
+    image: postgres:18-alpine
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-massa}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-massa}
@@ -8,7 +8,7 @@ services:
     ports:
       - "5432:5432"
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - postgres18_data:/var/lib/postgresql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-massa}"]
       interval: 5s
@@ -56,4 +56,4 @@ services:
       - backend
 
 volumes:
-  postgres_data:
+  postgres18_data:
