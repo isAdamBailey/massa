@@ -60,10 +60,10 @@ bash scripts/forge-deploy.sh
 
 $ACTIVATE_RELEASE()
 
-sudo supervisorctl restart daemon-<id>:*
+sudo supervisorctl restart daemon-1183266:*
 ```
 
-`<id>` is the massa daemon from step 4.
+`1183266` is the live massa daemon.
 
 `scripts/forge-deploy.sh` takes `/tmp/node-build.lock`, builds the Go API with `GOFLAGS=-p=2`, runs migrations, and runs `npm run generate`. Nginx serves `frontend/.output/public`. There is no Node process.
 
@@ -92,7 +92,7 @@ Two secrets must stay the same as the old server:
 
 Remove `FORGE_API_DAEMON` and `NUXT_PORT`. Omit `NUXT_PUBLIC_API_BASE` and `SMTP_HOST` (the host comes from `SES_REGION`).
 
-Changing `.env` only needs a daemon restart: `sudo supervisorctl restart daemon-<id>:*`.
+Changing `.env` only needs a daemon restart: `sudo supervisorctl restart daemon-1183266:*`.
 
 Google Cloud setup is in [GOOGLE_HEALTH_SETUP.md](./GOOGLE_HEALTH_SETUP.md).
 
@@ -106,15 +106,15 @@ Forge → **Background processes** → Custom.
 - User: `forge`
 - Command: `bash scripts/run-api.sh`
 
-`PORT` comes from `.env`. Supervisor starts it after a reboot.
+`PORT` comes from `.env`. The live daemon is `daemon-1183266`. Supervisor starts it after a reboot.
 
 ---
 
 ## 5. Nginx
 
-Site settings: `root /home/forge/massa.adambailey.io/current/frontend/.output/public;`.
+Site settings: `root /home/forge/massa.adambailey.io/current/frontend/.output/public;`. Forge writes it into `/etc/nginx/sites-available/massa.adambailey.io`.
 
-Before the catch-all:
+The location blocks go in the site's `site.conf` (Forge → site → **Nginx**), which is `/etc/nginx/forge-conf/3463871/site.conf` on disk. Forge's template already has `location / { try_files $uri $uri/ =404; }`, and nginx allows only one `location /`, so replace that block rather than adding a second. Keep Forge's SSL, header, `include forge-conf/3463871/server/*;` and `deny` lines as they are. The blocks are:
 
 ```nginx
 location /api/ {
@@ -169,8 +169,8 @@ The first is the daemon. The second is nginx proxying `/healthz`. The third is t
 | Symptom | Fix |
 | --- | --- |
 | 502 on `/api` | `sudo supervisorctl status`. Run `bash scripts/run-api.sh` from `current` for the real error. |
-| Daemon restart fails | `sudo supervisorctl restart daemon-<id>:*` — the `:*` suffix matches the process group. |
-| `bind: address already in use` | `sudo supervisorctl stop daemon-<id>:*` before killing the port. `ss -tlnp` shows what holds `8102`. |
+| Daemon restart fails | `sudo supervisorctl restart daemon-1183266:*` — the `:*` suffix matches the process group. |
+| `bind: address already in use` | `sudo supervisorctl stop daemon-1183266:*` before killing the port. `ss -tlnp` shows what holds `8102`. |
 | Login redirect broken | `APP_BASE_URL` must be `https://massa.adambailey.io`. |
 | Magic link opens the login screen | Nginx added a trailing slash and the public-route check missed `/auth/callback/`. The auth middleware strips that slash. |
 | Magic link never arrives | `SMTP_PORT` must be `2587`. Connections to 587 and 465 time out from this server. |
@@ -185,7 +185,7 @@ The first is the daemon. The second is nginx proxying `/healthz`. The third is t
 sudo -u postgres psql -d massa -c \
   "SELECT user_email, created_at FROM magic_link_tokens ORDER BY created_at DESC LIMIT 5;"
 sudo -u postgres psql -d massa -c "SELECT email FROM allowed_users;"
-sudo supervisorctl tail -100 daemon-<id>
+sudo supervisorctl tail -100 daemon-1183266
 ```
 
 No token rows → address not allowed or rate-limited (5/hour). Token rows but no mail → check SES credentials and the sender address in `.env`.
