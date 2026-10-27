@@ -13,9 +13,11 @@ magic-link login.
 - **Backend**: Go, chi router, pgx v5/pgxpool, sqlc-generated queries,
   golang-migrate with embedded migrations
 - **Frontend**: Nuxt 4 SPA (`ssr: false`), Tailwind v4, Pinia, Chart.js
-- **Database**: PostgreSQL 16
+- **Database**: PostgreSQL 18
 - **Local dev**: Docker Compose (Postgres + Mailpit + backend + frontend)
-- **Production**: Laravel Forge on a VPS — see `docs/DEPLOY.md`
+- **Production**: Forge VPS shared with the other Go apps
+  (`massa.adambailey.io`, Go on port `8102`, nginx serving
+  `nuxt generate` output). A push to `main` deploys. See `docs/DEPLOY.md`
 
 ## Commands
 
@@ -179,7 +181,10 @@ primary key.
   append-and-sort pattern here would draw a duplicate point until the next
   fetch.
 - `app/middleware/auth.global.ts` — redirects unauthenticated users to
-  `/login`, calling `auth.fetchMe()` once on first navigation.
+  `/login`, calling `auth.fetchMe()` once on first navigation. Nginx
+  redirects prerendered routes to a trailing slash (`/auth/callback/`), so
+  the middleware strips that slash before the public-route check, or the
+  magic link dumps the user on the login screen.
 - `app/components/SegmentedControl.vue` — shared toggle group with
   `emphasis: 'primary' | 'quiet'`. Primary uses a Graphite track and the
   metric accent for the active option; quiet is trackless Fog/Mist chips

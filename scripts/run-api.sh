@@ -4,7 +4,9 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 
 ENV_FILE=""
-for candidate in "$ROOT/.env" "$ROOT/../.env"; do
+# Site-root .env is ../.env when this script's root is `current`, and
+# ../../.env when it is the physical releases/<id> directory.
+for candidate in "$ROOT/../../.env" "$ROOT/../.env" "$ROOT/frontend/.env" "$ROOT/.env"; do
   if [[ -f "$candidate" ]]; then
     ENV_FILE="$(cd "$(dirname "$candidate")" && pwd)/$(basename "$candidate")"
     break
@@ -12,7 +14,7 @@ for candidate in "$ROOT/.env" "$ROOT/../.env"; do
 done
 
 if [[ -z "$ENV_FILE" ]]; then
-  echo "No .env found (checked $ROOT/.env and $ROOT/../.env)" >&2
+  echo "No .env found (checked $ROOT/../../.env, $ROOT/../.env, $ROOT/frontend/.env, and $ROOT/.env)" >&2
   exit 1
 fi
 

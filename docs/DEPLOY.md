@@ -1,219 +1,183 @@
 # Deploying Massa
 
-Production setup: a **VPS managed by [Laravel Forge](https://forge.laravel.com)**,
-PostgreSQL on the same server, Nuxt via PM2, and Go API as a Forge daemon.
+Production is a Forge VPS shared with the other Go apps. One Postgres cluster, one Go process per app, and nginx serving the frontend as static files. Platform rules (ports, build lock, backups) are [face-value#18](https://github.com/isAdamBailey/face-value/issues/18). The move onto this server is [massa#15](https://github.com/isAdamBailey/massa/issues/15).
+
+The previous server's PM2 layout is [DEPLOY-old.md](./DEPLOY-old.md).
 
 **Repo:** https://github.com/isAdamBailey/massa
+**Domain:** `massa.adambailey.io`
+**Go API port:** `8102`
 
 ## Architecture
 
 ```
-https://massa.example.com
+https://massa.adambailey.io
          │
          ▼
       Nginx (Forge-managed)
-         ├─ /api/*, /healthz  → 127.0.0.1:8080  (Go daemon)
-         └─ /*                → 127.0.0.1:3001  (Nuxt via PM2; port varies)
+         ├─ /api/*, /healthz  → 127.0.0.1:8102  (Go daemon)
+         └─ /*                → frontend/.output/public  (static files)
 
-Postgres → 127.0.0.1 on the VPS
-Email    → your existing SMTP provider (e.g. SES)
+Postgres → 127.0.0.1:5432, database massa
+Email    → SES
+Google   → Google Health API (OAuth tokens encrypted in Postgres)
 ```
 
-Cookie auth requires **one domain**. Nginx proxies `/api` to Go; everything else
-goes to Nuxt. Production builds use same-origin API requests (`/api/...`), so
-`NUXT_PUBLIC_API_BASE` is optional when frontend and API share a domain.
+Cookie auth needs this one domain. Production API calls are same-origin (`/api/...`), so `NUXT_PUBLIC_API_BASE` is unset and `nuxt generate` bakes in an empty base.
 
 ---
 
-## 1. Server prerequisites
+## 1. Postgres role and database
 
-Use an existing Forge server or provision a new one (e.g. DigitalOcean droplet).
-
-### PostgreSQL
-
-Install Postgres on the VPS if Forge does not provide it (some servers only have
-MySQL in the Forge UI):
+Postgres 18 is already installed on the server, listening on localhost. Create the app role and database once. Type the password at the prompt.
 
 ```sh
-sudo apt update
-sudo apt install -y postgresql postgresql-contrib
 sudo -u postgres createuser --pwprompt massa
 sudo -u postgres createdb -O massa massa
-sudo -u postgres psql -d massa -c "CREATE EXTENSION IF NOT EXISTS pgcrypto;"
+sudo -u postgres psql -c "REVOKE CONNECT ON DATABASE massa FROM PUBLIC; GRANT CONNECT ON DATABASE massa TO massa;"
 ```
 
-Note `DATABASE_URL` for step 3, e.g.
-`postgres://massa:PASSWORD@127.0.0.1:5432/massa?sslmode=disable`.
+`DATABASE_URL` is `postgres://massa:PASSWORD@127.0.0.1:5432/massa?sslmode=disable`.
 
-### Go
+The owning role creates `pgcrypto` from migration `000001`. No superuser is required at deploy time.
 
-Forge may not include Go. Install once per server:
-
-```sh
-uname -m   # x86_64 → amd64, aarch64 → arm64
-cd /tmp
-curl -LO https://go.dev/dl/go1.26.4.linux-amd64.tar.gz   # or linux-arm64
-sudo rm -rf /usr/local/go
-sudo tar -C /usr/local -xzf go1.26.4.linux-amd64.tar.gz
-/usr/local/go/bin/go version
-```
-
-The deploy script adds `/usr/local/go/bin` to `PATH`.
+Go is installed at `/usr/local/go` (1.26.x). The deploy script adds it to `PATH`.
 
 ---
 
-## 2. Create the Forge site
+## 2. Forge site
 
-1. **Sites → New Site** → your domain (e.g. `massa.example.com`).
-2. Project type: **Nuxt**.
-3. **Web directory:** leave blank (repo root). The deploy script builds from the
-   monorepo; do not set `frontend`.
-4. **Server port:** use an free port (e.g. `3001` if another app uses `3000`).
-   Set `NUXT_PORT` in environment to match (see step 3).
-5. Connect **GitHub** → `isAdamBailey/massa`, branch `main`.
-6. Enable **Push to deploy**.
-7. **Deploy script:**
+1. **Sites → New Site** → `massa.adambailey.io`.
+2. Project type: Nuxt, set to Static. This gives a zero-downtime site (`releases/` and `current`) with no Node process. Branch `main`. Push-to-deploy is on: a push to `main` deploys this site.
+3. Repository: `isAdamBailey/massa`.
+4. Replace the deploy script with:
 
-   ```bash
-   bash $FORGE_SITE_PATH/scripts/forge-deploy.sh
-   ```
+```bash
+$CREATE_RELEASE()
 
-8. **SSL** → obtain a Let's Encrypt certificate.
+cd "$FORGE_RELEASE_DIRECTORY"
+bash scripts/forge-deploy.sh
 
-Forge clones the repo under `/home/forge/massa.example.com/` with `current/`
-pointing at the active release.
+$ACTIVATE_RELEASE()
+
+sudo supervisorctl restart daemon-<id>:*
+```
+
+`<id>` is the massa daemon from step 4.
+
+`scripts/forge-deploy.sh` takes `/tmp/node-build.lock`, builds the Go API with `GOFLAGS=-p=2`, runs migrations, and runs `npm run generate`. Nginx serves `frontend/.output/public`. There is no Node process.
 
 ---
 
-## 3. Environment variables
+## 3. Environment
 
-Forge → site → **Environment**. Forge writes these to
-`/home/forge/massa.example.com/.env` (site root, not inside each release).
+Forge → site → **Environment**. The file is `/home/forge/massa.adambailey.io/.env`.
 
-Copy values from `.env.example` for local dev, then swap the following for
-production:
+Copy the old site's environment, then change only:
 
-| Variable | Local (`.env.example`) | Production (Forge) |
-| --- | --- | --- |
-| `DATABASE_URL` | `postgres://…@postgres:5432/…` | `postgres://…@127.0.0.1:5432/massa?sslmode=disable` |
-| `APP_BASE_URL` | `http://localhost:3000` | `https://massa.example.com` |
-| `COOKIE_SIGNING_SECRET` | dev placeholder | `openssl rand -base64 32` |
-| `COOKIE_SECURE` | `false` | `true` |
-| `GOOGLE_OAUTH_REDIRECT_URL` | `http://localhost:8080/api/google/callback` | `https://massa.example.com/api/google/callback` |
-| `EMAIL_PROVIDER` | `smtp` | `ses` |
-| `SMTP_HOST` | `mailpit` | omit (auto from `SES_REGION` when using `ses`) |
-| `SMTP_PORT` | `1025` | omit (defaults to `587`) |
-| `SMTP_USERNAME` | empty | your SMTP username |
-| `SMTP_PASSWORD` | empty | your SMTP password |
-| `SES_REGION` | empty | your SES region, e.g. `us-west-2` |
-| `MAGIC_LINK_FROM_EMAIL` | `login@massa.local` | your verified sender address |
-| `ALLOWED_EMAILS` | your email | same — must match what you type at login |
-| `NUXT_PUBLIC_API_BASE` | `http://localhost:8080` | omit (same-origin `/api` in production) |
-
-Production-only (not in `.env.example`):
-
-| Variable | Value |
+| Variable | Production |
 | --- | --- |
-| `PORT` | `8080` (Go API — nginx proxies `/api` here) |
-| `NUXT_PORT` | Forge site port, e.g. `3001` if `3000` is taken |
-| `FORGE_API_DAEMON` | Supervisor name from Forge → Daemons, e.g. `daemon-1234567` |
+| `DATABASE_URL` | `postgres://massa:PASSWORD@127.0.0.1:5432/massa?sslmode=disable` |
+| `PORT` | `8102` |
+| `APP_BASE_URL` | `https://massa.adambailey.io` |
+| `COOKIE_SECURE` | `true` |
+| `GOOGLE_OAUTH_REDIRECT_URL` | `https://massa.adambailey.io/api/google/callback` |
+| `EMAIL_PROVIDER` | `ses` |
+| `SMTP_PORT` | `2587`. This server cannot open 587 or 465; SES answers on 2587. |
 
-Do **not** set `SMTP_HOST` to a template like `email-smtp.{SES_REGION}.amazonaws.com`
-— either omit it or use the real hostname.
+Two secrets must stay the same as the old server:
 
-Changing env vars only requires restarting the API daemon — no full redeploy:
+- `COOKIE_SIGNING_SECRET`, or the existing user is logged out.
+- `OAUTH_TOKEN_ENCRYPTION_KEY`, or the stored Google Health tokens cannot be decrypted and Google has to be reconnected.
 
-```sh
-sudo supervisorctl restart daemon-1234567
-```
+Remove `FORGE_API_DAEMON` and `NUXT_PORT`. Omit `NUXT_PUBLIC_API_BASE` and `SMTP_HOST` (the host comes from `SES_REGION`).
+
+Changing `.env` only needs a daemon restart: `sudo supervisorctl restart daemon-<id>:*`.
+
+Google Cloud setup is in [GOOGLE_HEALTH_SETUP.md](./GOOGLE_HEALTH_SETUP.md).
 
 ---
 
 ## 4. Go API daemon
 
-1. **Server → Daemons → New Daemon**
-2. **Command:** `/home/forge/massa.example.com/current/scripts/run-api.sh`
-3. **Directory:** `/home/forge/massa.example.com/current`
-4. **User:** `forge`
+Forge → **Background processes** → Custom.
 
-Copy the supervisor name from the daemon page (e.g. `daemon-1234567`, including
-the `daemon-` prefix) into `FORGE_API_DAEMON`.
+- Directory: `/home/forge/massa.adambailey.io/current`
+- User: `forge`
+- Command: `bash scripts/run-api.sh`
 
-The deploy script runs `git pull`, builds the Go binary, rebuilds Nuxt, reloads
-PM2, and restarts this daemon.
+`PORT` comes from `.env`. Supervisor starts it after a reboot.
 
 ---
 
-## 5. Nginx — proxy `/api` to Go
+## 5. Nginx
 
-Forge → site → **Nginx** — add **before** the existing `location /` block:
+Site settings: `root /home/forge/massa.adambailey.io/current/frontend/.output/public;`.
+
+Before the catch-all:
 
 ```nginx
 location /api/ {
-    proxy_pass http://127.0.0.1:8080;
+    proxy_pass http://127.0.0.1:8102;
     proxy_http_version 1.1;
     proxy_set_header Host $host;
     proxy_set_header X-Real-IP $remote_addr;
     proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
     proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_read_timeout 120s;
 }
 
 location = /healthz {
-    proxy_pass http://127.0.0.1:8080;
-    proxy_http_version 1.1;
-    proxy_set_header Host $host;
-    proxy_set_header X-Real-IP $remote_addr;
-    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_pass http://127.0.0.1:8102;
+}
+
+location /_nuxt/ {
+    expires 1y;
+    add_header Cache-Control "public, immutable";
+    try_files $uri =404;
+}
+
+location / {
+    try_files $uri $uri/ /200.html;
 }
 ```
 
-Ensure `location /` proxies to the Nuxt port (`127.0.0.1:3001` if that is your
-`NUXT_PORT`). Save — Forge reloads Nginx.
+`sudo nginx -t`, then reload.
+
+`proxy_read_timeout 120s` covers a long Google Health backfill.
+
+`try_files $uri $uri/` redirects a generated page such as `/auth/callback` to `/auth/callback/`. The auth middleware strips a trailing slash before the public-route check, so the magic link still signs the user in.
 
 ---
 
-## 6. First deploy
+## 6. Check a deploy
 
-1. **Deploy Now** in Forge (or push to `main` with push-to-deploy enabled).
-2. Confirm the log shows Go build, `npm run build`, PM2 start, and daemon restart.
-3. Verify:
+The deploy log should show the build lock, `go build`, migrate, and `npm run generate`, then the daemon restart.
 
-   ```sh
-   curl -s https://massa.example.com/healthz
-   curl -I http://127.0.0.1:3001
-   pm2 list
-   ```
-
-4. Request a magic link and complete login.
-
----
-
-## 7. Google OAuth (optional)
-
-Add the production redirect URI in Google Cloud Console:
-
-```
-https://massa.example.com/api/google/callback
+```sh
+curl -s 127.0.0.1:8102/healthz
+curl -s -H 'Host: massa.adambailey.io' 127.0.0.1/healthz
+curl -s -H 'Host: massa.adambailey.io' 127.0.0.1/ | head
 ```
 
-See [GOOGLE_HEALTH_SETUP.md](./GOOGLE_HEALTH_SETUP.md).
+The first is the daemon. The second is nginx proxying `/healthz`. The third is the generated HTML.
 
 ---
 
 ## Troubleshooting
 
 | Symptom | Fix |
-|---------|-----|
-| 502 on `/` | `pm2 list` — `massa-web` must listen on `NUXT_PORT`. See Nuxt 502 below. |
-| 502 on `/api` | Check **Server → Daemons**; run `scripts/run-api.sh` manually for errors |
-| Nuxt binds to wrong port | Set `NUXT_PORT=3001` in Forge env (not `PORT` — that is Go on 8080). Restart PM2 or redeploy. |
-| Nuxt 502 after deploy | `cd current/frontend && export NUXT_PORT=3001 PORT=3001 && pm2 delete massa-web; pm2 start ecosystem.config.cjs --update-env && pm2 save` |
-| Magic link 200, no email | Email not on `ALLOWED_EMAILS`, or SMTP misconfigured — check daemon logs |
-| Bad SMTP host | Remove `SMTP_HOST` from env or set the real hostname |
-| Login redirect broken | `APP_BASE_URL` must match your HTTPS domain |
-| Deploy fails on `go build` | Install Go (see step 1) |
-| Daemon restart fails in deploy | Set `FORGE_API_DAEMON` to the full supervisor name (`daemon-1234567`) |
+| --- | --- |
+| 502 on `/api` | `sudo supervisorctl status`. Run `bash scripts/run-api.sh` from `current` for the real error. |
+| Daemon restart fails | `sudo supervisorctl restart daemon-<id>:*` — the `:*` suffix matches the process group. |
+| `bind: address already in use` | `sudo supervisorctl stop daemon-<id>:*` before killing the port. `ss -tlnp` shows what holds `8102`. |
+| Login redirect broken | `APP_BASE_URL` must be `https://massa.adambailey.io`. |
+| Magic link opens the login screen | Nginx added a trailing slash and the public-route check missed `/auth/callback/`. The auth middleware strips that slash. |
+| Magic link never arrives | `SMTP_PORT` must be `2587`. Connections to 587 and 465 time out from this server. |
+| Magic link 200, no email | Email not on `ALLOWED_EMAILS`, or SES misconfigured. Check the daemon log. |
+| Google sync fails with `decrypt: authentication failed` in the daemon log | `OAUTH_TOKEN_ENCRYPTION_KEY` differs from the key that stored the tokens. Restore the old key, or disconnect and reconnect in Settings. |
+| Google callback error | `GOOGLE_OAUTH_REDIRECT_URL` must match the URI in Google Cloud Console. |
+| Deploy cannot find `.env` | The file belongs at the site root, `/home/forge/massa.adambailey.io/.env`. |
 
 **Diagnose magic links:**
 
@@ -221,14 +185,7 @@ See [GOOGLE_HEALTH_SETUP.md](./GOOGLE_HEALTH_SETUP.md).
 sudo -u postgres psql -d massa -c \
   "SELECT user_email, created_at FROM magic_link_tokens ORDER BY created_at DESC LIMIT 5;"
 sudo -u postgres psql -d massa -c "SELECT email FROM allowed_users;"
-sudo supervisorctl tail -100 daemon-1234567
+sudo supervisorctl tail -100 daemon-<id>
 ```
 
-No token rows → address not allowed or rate-limited (5/hour). Token rows but no
-mail → check SMTP credentials and sender address in Forge env.
-
----
-
-## Cost
-
-Typical monthly cost for personal use: VPS (~$6–12) and an existing Forge plan.
+No token rows → address not allowed or rate-limited (5/hour). Token rows but no mail → check SES credentials and the sender address in `.env`.
