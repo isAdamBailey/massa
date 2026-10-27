@@ -1,5 +1,7 @@
 # Massa
 
+[![Laravel Forge Site Deployment Status](https://img.shields.io/endpoint?url=https%3A%2F%2Fforge.laravel.com%2Fsite-badges%2F714b1a56-7744-47a1-9872-c24736452e3f&style=plastic)](https://forge.laravel.com/adam-f6w/stunning-fern-s7f/3463871)
+
 A personal weight/BMI tracker that syncs with the Google Health API.
 
 Massa stores your weight history in its own Postgres database, computes BMI
